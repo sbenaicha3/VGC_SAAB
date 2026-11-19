@@ -1,0 +1,7 @@
+{
+  "horizon": 20.0,
+  "availability": 0.8,
+  "shock_year": 3.0,
+  "shock_diversion": 0.12,
+  "market_growth": 0.03
+}

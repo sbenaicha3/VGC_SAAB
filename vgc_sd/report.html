@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VGC · Program evolution</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#dce5ef;background:#0c1420;color-scheme:dark}*{box-sizing:border-box}body{max-width:1480px;margin:auto;padding:32px}h1{font-size:32px;margin:8px 0}h2{font-size:18px;margin:0 0 8px}p{color:#aabbd0;line-height:1.6}.eyebrow{color:#71d5c4;letter-spacing:.12em;font-size:12px}.controls{display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin:28px 0}label{display:grid;gap:8px;font-size:14px}select,button{font:inherit;padding:10px 14px;background:#1c2a3c;border:1px solid #42546a;border-radius:6px;color:inherit}button{cursor:pointer}input{accent-color:#71d5c4}.slider{flex:1;min-width:200px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px}.stat{padding:16px;background:#142133;border-radius:8px}.stat span{font-size:12px;color:#afc0d5}.stat strong{display:block;font-size:25px;margin-top:8px}.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:30px 24px}.chart{min-width:0}svg{width:100%;height:auto;display:block;overflow:visible}svg text{fill:#aabbd0;font:11px system-ui}svg .grid{stroke:#26374b;stroke-width:1}.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;margin:12px 0 22px}.key:before{content:'';display:inline-block;background:var(--c);height:3px;width:24px;margin:0 8px 3px 0}.readout{font-size:12px;min-height:36px;color:#b4c6da}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:right;padding:12px;border-bottom:1px solid #293a50}th:first-child,td:first-child{text-align:left}.tablewrap{overflow:auto}details{margin-top:24px}summary{cursor:pointer}footer{margin-top:30px;font-size:13px;color:#9bafc6}@media(max-width:750px){body{padding:18px}.charts{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}h1{font-size:26px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style></head><body>
+<div class="eyebrow">VGC / SYSTEM DYNAMICS LABORATORY</div>
+<h1>Business jet program evolution</h1>
+<p id="subtitle"></p>
+<p><strong>Illustrative, uncalibrated inputs.</strong> This report explores model behavior; it does not forecast Saab performance. Years are measured from program launch.</p>
+<div class="controls">
+<label>Initial staffing / required staffing<select id="availability"><option value="0.6">60%</option><option value="0.8" selected>80%</option><option value="1.1">110%</option></select></label>
+<label>Focus policy<select id="focus"><option value="baseline">Baseline</option><option value="hire" selected>Hire</option><option value="protect_hire">Protect + hire</option></select></label>
+<button id="play" type="button">Play evolution</button>
+<label class="slider">Evolution at <output id="year"></output><input id="time" type="range" min="0" step="0.05" aria-label="Years from launch"></label>
+</div>
+<div class="stats" id="stats" aria-live="polite"></div>
+<div class="legend"><span class="key" style="--c:#f2ab66">Baseline</span><span class="key" style="--c:#70d8c3">Hire</span><span class="key" style="--c:#a9adff">Protect + hire</span></div>
+<div class="charts" id="charts"></div>
+<h2 style="margin-top:30px">Full-horizon comparison</h2><p>The table always shows final results. The timeline slider changes plots and focus metrics above.</p>
+<div class="tablewrap"><table><thead><tr><th>Policy / initial staffing</th><th>EIS (year)</th><th>NPV ($m)</th><th>Peak exposure ($m)</th><th>Delivered</th></tr></thead><tbody id="comparison"></tbody></table></div>
+<details><summary>Model assumptions and interpretation</summary><p>Baseline allows attrition and diversion to reduce staffing. Hire replaces losses and closes staffing gaps through a first-order adjustment. Protect + hire additionally reduces diversions at an annual cost. A persistent diversion shock starts at the configured shock year. Certification follows completion of design work. Orders and production ramp begin after certification. Aircraft quantities are continuous SD approximations.</p><p>All money is constant USD million. NPV includes initial capex and discounted operating cashflows, with no terminal value. Net cash is cumulative project cashflow, not corporate bank cash. Exit, financing, taxes, competitor reactions and DAPP pathways are not evaluated here. The design and certification plots use a 0–100% scale; other plots scale to the three policies at the selected staffing level.</p><pre id="parameters" style="white-space:pre-wrap"></pre></details>
+<footer>Offline report · Embedded weekly trajectories · Hover or tap a chart to inspect a year. Changing controls explores existing runs and does not rerun the model.</footer>
+<script id="data" type="application/json">__RUN_DATA__</script>
+<script>
+'use strict';
+const runs=JSON.parse(document.getElementById('data').textContent);
+const colors=['#f2ab66','#70d8c3','#a9adff'], names=['Baseline','Hire','Protect + hire'], policies=['baseline','hire','protect_hire'];
+const metrics=[['engineers','Engineering workforce','FTE'],['design_pct','Design work completed','%'],['cert_pct','Certification progress','%'],['deliveries','Delivery rate','aircraft/year'],['delivered','Cumulative deliveries','aircraft'],['backlog','Order backlog','aircraft'],['cash','Cumulative net cash','USD million'],['npv','Cumulative discounted value','USD million']];
+const $=id=>document.getElementById(id), fmt=(v,d=0)=>Number(v).toLocaleString('en-US',{maximumFractionDigits:d});
+const horizon=runs[0].parameters.horizon;
+$('subtitle').textContent=`${fmt(horizon)} years · Weekly simulation · Three policies across three staffing futures`;
+$('time').max=horizon; $('time').value=horizon;
+function selected(){return policies.map(p=>runs.find(r=>r.policy===p && Math.abs(r.parameters.availability-Number($('availability').value))<1e-8));}
+function at(run,t){let lo=0,hi=run.rows.length-1;while(lo<hi){const m=Math.ceil((lo+hi)/2);if(run.rows[m].time<=t+1e-9)lo=m;else hi=m-1;}return run.rows[lo];}
+function value(row,key,run){return key==='design_pct'?100*(1-row.work/run.parameters.design_work):key==='cert_pct'?100*row.certification:row[key];}
+const W=640,H=250,L=72,R=18,T=15,B=38;
+const chartNodes=metrics.map(([key,title,unit],i)=>{const section=document.createElement('section');section.className='chart';section.innerHTML=`<h2>${title}</h2><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${title} over years from launch; ${unit}"></svg><div class="readout" aria-live="off"></div>`;$('charts').append(section);const svg=section.querySelector('svg');svg.addEventListener('pointermove',e=>{const box=svg.getBoundingClientRect(),x=(e.clientX-box.left)*W/box.width;$('time').value=Math.max(0,Math.min(horizon,(x-L)/(W-L-R)*horizon));render();});return {svg,readout:section.querySelector('.readout')};});
+function render(){const group=selected(),t=Number($('time').value),focus=group[policies.indexOf($('focus').value)],row=at(focus,t);
+$('year').textContent=`year ${fmt(t,2)}`;
+const eis=row.eis===null?'Not reached':`Year ${fmt(row.eis,2)}`;
+$('stats').innerHTML=[['Entry into service',eis],['NPV at selected year',`$${fmt(row.npv)}m`],['Peak cash exposure so far',`$${fmt(row.peak_exposure)}m`],['Aircraft delivered',fmt(row.delivered,1)]].map(([k,v])=>`<div class="stat"><span>${names[policies.indexOf(focus.policy)]} · ${k}</span><strong>${v}</strong></div>`).join('');
+metrics.forEach(([key,title,unit],index)=>{const node=chartNodes[index];let min=0,max=0;group.forEach(run=>run.rows.forEach(r=>{const v=value(r,key,run);min=Math.min(min,v);max=Math.max(max,v);}));if(key.endsWith('_pct'))max=100;else{const padding=(max-min||1)*.08;max+=padding;if(min<0)min-=padding;}const x=v=>L+v/horizon*(W-L-R),y=v=>T+(max-v)/(max-min||1)*(H-T-B);let html='';
+for(let j=0;j<=4;j++){const v=min+(max-min)*j/4,yy=y(v);html+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-10}" y="${yy+4}" text-anchor="end">${fmt(v)}</text>`;}
+for(let j=0;j<=5;j++){const year=horizon*j/5;html+=`<text x="${x(year)}" y="${H-17}" text-anchor="middle">${fmt(year,1)}</text>`;}
+html+=`<text x="${L}" y="${H-1}">Years from launch · ${unit}</text>`;
+const shock=focus.parameters.shock_year;if(shock<=horizon)html+=`<line x1="${x(shock)}" x2="${x(shock)}" y1="${T}" y2="${H-B}" stroke="#61738d" stroke-dasharray="3 5"/><text x="${x(shock)+5}" y="${T+11}">Shock</text>`;
+group.forEach((run,i)=>{const points=run.rows.filter(r=>r.time<=t+1e-9).map(r=>`${x(r.time).toFixed(2)},${y(value(r,key,run)).toFixed(2)}`).join(' ');html+=`<polyline fill="none" stroke="${colors[i]}" stroke-width="${run===focus?3:1.5}" opacity="${run===focus?1:.65}" points="${points}"/>`;const rr=at(run,t);html+=`<circle cx="${x(rr.time)}" cy="${y(value(rr,key,run))}" r="3" fill="${colors[i]}"/>`;});
+html+=`<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H-B}" stroke="#bacadd" stroke-dasharray="2 4"/>`;node.svg.innerHTML=html;node.readout.textContent=group.map((run,i)=>`${names[i]}: ${fmt(value(at(run,t),key,run),1)} ${unit}`).join(' · ');
+});
+$('parameters').textContent='Focus run inputs\n'+JSON.stringify(focus.parameters,null,2);
+}
+$('comparison').innerHTML=runs.map(r=>{const last=r.rows.at(-1);return `<tr><td>${names[policies.indexOf(r.policy)]} / ${fmt(r.parameters.availability*100)}%</td><td>${last.eis===null?'Not within horizon':fmt(last.eis,2)}</td><td>${fmt(last.npv)}</td><td>${fmt(last.peak_exposure)}</td><td>${fmt(last.delivered,1)}</td></tr>`;}).join('');
+['availability','focus','time'].forEach(id=>$(id).addEventListener('input',render));let timer=null;
+$('play').addEventListener('click',()=>{if(timer){clearInterval(timer);timer=null;$('play').textContent='Play evolution';return;}if(Number($('time').value)>=horizon)$('time').value=0;$('play').textContent='Pause';timer=setInterval(()=>{const t=Math.min(horizon,Number($('time').value)+.1);$('time').value=t;render();if(t>=horizon){clearInterval(timer);timer=null;$('play').textContent='Play evolution';}},80);});
+render();
+</script></body></html>

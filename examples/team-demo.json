@@ -1,0 +1,104 @@
+{
+  "parameters": {
+    "horizon": 20,
+    "dt": 0.019230769230769232,
+    "required_engineers": 1000,
+    "availability": 0.8,
+    "hiring_delay": 1.5,
+    "attrition": 0.04,
+    "diversion": 0.08,
+    "shock_year": 3.0,
+    "shock_diversion": 0,
+    "design_work": 6000,
+    "rework_fraction": 0.12,
+    "certification_years": 2.0,
+    "capacity_target": 60.0,
+    "ramp_years": 3.0,
+    "market_units": 850.0,
+    "market_growth": 0.03,
+    "capture_share": 0.06,
+    "price": 40.0,
+    "unit_cost": 32.0,
+    "learning_exponent": 0.08,
+    "engineer_cost": 0.18,
+    "overhead": 40.0,
+    "certification_cost": 300.0,
+    "capex": 500.0,
+    "protection_cost": 25.0,
+    "discount_rate": 0.08
+  },
+  "samples": 8,
+  "seed": 42,
+  "ranges": {
+    "availability": [
+      0.6,
+      1.1
+    ],
+    "hiring_delay": [
+      1,
+      2.5
+    ],
+    "certification_years": [
+      1.5,
+      3
+    ],
+    "market_growth": [
+      0.01,
+      0.05
+    ]
+  },
+  "adaptive": {
+    "hire_at": 0.85,
+    "protect_at": 0.7,
+    "cash_limit": 2800,
+    "review": 0.25,
+    "latency": 0.1
+  },
+  "shocks": [
+    {
+      "kind": "diversion",
+      "start_range": [
+        2,
+        5
+      ],
+      "duration_range": [
+        1,
+        3
+      ],
+      "magnitude_range": [
+        0.05,
+        0.2
+      ]
+    },
+    {
+      "kind": "demand",
+      "start_range": [
+        9,
+        12
+      ],
+      "duration_range": [
+        1,
+        3
+      ],
+      "magnitude_range": [
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "kind": "supply",
+      "start_range": [
+        11,
+        14
+      ],
+      "duration_range": [
+        0.5,
+        2
+      ],
+      "magnitude_range": [
+        0.1,
+        0.4
+      ]
+    }
+  ]
+}

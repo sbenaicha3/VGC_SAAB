@@ -1,0 +1,22 @@
+name: Python checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.12', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Unit and local HTTP tests
+        run: python -m unittest discover -s tests -v
+      - name: CSV and offline report smoke test
+        run: python -m vgc_sd --years 2 --out results_ci
+      - name: Portable launcher
+        run: python run.py --help
