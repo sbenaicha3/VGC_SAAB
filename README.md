@@ -1,6 +1,12 @@
-# VGC Test Tool
+# VGC World Laboratory
 
 A local simulator for exploring business-jet market entry using system dynamics, sampled futures and candidate adaptive pathways. The browser dashboard runs against a Python server on your own computer.
+
+## Understand the code and model
+
+Open [the searchable offline guide](docs/index.html) in your browser, or read [the code and equation guide](docs/CODE_GUIDE.md) on GitHub. It includes a code-flow tree, object ownership, all stock formulas and assumptions, a worked simulation step, and links into the source. The [parameter reference](docs/PARAMETERS.md) explains each field, default and unit.
+
+The offline guide requires no server. Rebuild it after updating the Markdown documentation or source with `python tools/build_docs.py`. The generated source browser reflects the files at build time; rebuild it when changing Python code.
 
 **Research prototype:** inputs are illustrative and uncalibrated. Outputs are model experiments, not Saab forecasts or validated investment advice. Keep this repository private under the team's university/sponsor arrangements; no public open-source license has been assigned.
 

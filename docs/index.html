@@ -1,0 +1,960 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VGC · Code and model guide</title>
+<style>
+:root{color-scheme:light;--bg:#f7f9fb;--text:#182b3c;--muted:#526677;--line:#ccd7e0;--panel:#fff;--code:#edf2f6;--accent:#08665d}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 system-ui,sans-serif}aside{position:fixed;inset:0 auto 0 0;width:290px;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:24px}aside a{display:block;padding:4px 0;font-size:13px}aside h3{font-size:14px;margin:20px 0 6px}main{margin-left:290px;max-width:1500px;padding:35px 48px}h1{font-size:34px;line-height:1.2}h2{font-size:25px;line-height:1.3;margin:0 0 20px}h3{font-size:18px}p{max-width:1000px}a{color:var(--accent)}input{width:100%;padding:10px;font:inherit;border:1px solid var(--line);border-radius:5px}.guide-section{padding:32px 0;border-bottom:1px solid var(--line);scroll-margin-top:20px}.note{color:var(--muted);font-size:14px}code{font:13px/1.65 ui-monospace,Consolas,monospace;background:var(--code);padding:2px 4px}pre{overflow:auto;background:var(--code);padding:20px;border-radius:6px}pre code{padding:0;background:none;white-space:pre}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:12px}th{background:var(--code)}.table-scroll{overflow:auto}.source pre{max-height:650px}.source span:target{background:#ffeaa4}.ln{color:var(--muted);text-decoration:none}svg{width:100%;height:auto;max-height:400px;font:12px system-ui}.boxes rect{fill:var(--panel);stroke:var(--line);rx:7}.labels{text-anchor:middle;fill:var(--text)}.edges path{fill:none;stroke:var(--accent);marker-end:url(#arrow)}svg text{fill:var(--text)}button{font:inherit;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:8px 12px;cursor:pointer}[hidden]{display:none!important}@media(max-width:900px){aside{position:static;width:auto;max-height:300px;border-bottom:1px solid var(--line)}main{margin:0;padding:25px 18px}}@media print{aside,button{display:none}main{margin:0;padding:0}.source{display:none}pre{white-space:pre-wrap}pre code{white-space:pre-wrap}.guide-section{break-inside:auto}}
+</style></head><body><aside><strong>VGC documentation</strong><p class="note">Read the model, trace the code.</p><label for="search">Find a concept</label><input id="search" type="search" placeholder="e.g. hiring, certification, exit"><p id="matches" class="note"></p><nav><a href="#object-map">Object interaction map</a><h3>Code and model</h3><a href="#navigation-and-reading-path">Navigation and reading path</a><a href="#the-model-in-one-minute">The model in one minute</a><a href="#code-flow-tree">Code flow tree</a><a href="#objects-and-ownership">Objects and ownership</a><a href="#one-simulation-step">One simulation step</a><a href="#notation-and-units">Notation and units</a><a href="#stock-and-state-register">Stock and state register</a><a href="#engineers">Engineers</a><a href="#remaining-design-work">Remaining design work</a><a href="#certification-progress">Certification progress</a><a href="#production-capacity">Production capacity</a><a href="#backlog-and-deliveries">Backlog and deliveries</a><a href="#cash-npv-and-exposure">Cash, NPV and exposure</a><a href="#shocks-and-scenario-sampling">Shocks and scenario sampling</a><a href="#adaptive-decision-logic">Adaptive decision logic</a><a href="#robustness-and-decision-audits">Robustness and decision audits</a><a href="#browser-functions-and-data-contracts">Browser functions and data contracts</a><a href="#worked-first-step">Worked first step</a><a href="#assumptions-and-limitations">Assumptions and limitations</a><a href="#feedback-and-cross-stock-interactions">Feedback and cross-stock interactions</a><a href="#where-to-change-things">Where to change things</a><a href="#validation-and-tests">Validation and tests</a><h3>Parameters</h3><a href="#param-world-parameters">World parameters</a><a href="#param-adaptive-policy-settings">Adaptive policy settings</a><a href="#param-experiment-settings">Experiment settings</a><a href="#param-shock-event-settings">Shock event settings</a><a href="#param-dashboard-settings">Dashboard settings</a><a href="#param-built-in-constants-to-recognize">Built-in constants to recognize</a><h3>Source browser</h3><a href="#source-model">model.py</a><a href="#source-experiment">experiment.py</a><a href="#source-server">server.py</a><a href="#source-__main__">__main__.py</a></nav></aside><main><header><p class="note">IMPLEMENTATION GUIDE · 19 NOVEMBER 2026</p><h1>How the VGC model works</h1><p>Stock equations, assumptions, code flow and object ownership, traced from the current source. Start with the one-minute model, then explore individual stocks or the embedded source.</p><p><a href="CODE_GUIDE.md">GitHub Markdown guide</a> · <a href="PARAMETERS.md">Parameter reference</a> · <a href="../README.md">Setup and use</a></p><button onclick="window.print()">Print / save PDF</button></header><section class="guide-section" id="object-map"><h2>Object interaction map</h2>
+<svg viewBox="0 0 960 360" role="img" aria-label="Browser sends a request through Handler and experiment to World; World references Parameters, consumes Actions and owns mutable State">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="currentColor"/></marker></defs>
+<g class="boxes"><rect x="10" y="20" width="210" height="65"/><rect x="370" y="20" width="210" height="65"/><rect x="730" y="20" width="210" height="65"/><rect x="10" y="190" width="210" height="65"/><rect x="370" y="190" width="210" height="65"/><rect x="730" y="190" width="210" height="65"/></g>
+<g class="labels"><text x="115" y="49">Browser / app.html</text><text x="115" y="70">inputs and results</text><text x="475" y="49">Handler / server.py</text><text x="475" y="70">HTTP to Python</text><text x="835" y="49">experiment()</text><text x="835" y="70">sampling and policy memory</text><text x="115" y="220">Parameters</text><text x="115" y="240">frozen configuration</text><text x="475" y="220">Action</text><text x="475" y="240">hire / protect / exit</text><text x="835" y="220">World</text><text x="835" y="240">owns mutable State</text></g>
+<g class="edges"><path d="M220 45H370"/><path d="M580 45H730"/><path d="M835 85V190"/><path d="M580 222H730"/><path d="M115 255V308H805V255"/><path d="M940 215H952V108H870V85" stroke-dasharray="4 4"/></g>
+<text x="260" y="36">request JSON</text><text x="615" y="36">call</text><text x="700" y="142">create / step</text><text x="625" y="210">consume</text><text x="250" y="301">World references configuration</text><text x="610" y="105">observe() snapshot to policy loop</text>
+<text x="12" y="345">Returned rows travel back through the server to the browser. Each policy and audit branch has its own state.</text>
+</svg></section><p>This guide describes the code as implemented, including its shortcuts. Equations are research hypotheses, not calibrated aircraft-program relationships. Start with the reading path, then use the stock reference or architecture sections as needed.</p>
+<section class="guide-section" id="navigation-and-reading-path"><h2>Navigation and reading path</h2>
+<ol>
+<li><a href="#the-model-in-one-minute">The model in one minute</a></li>
+<li><a href="#code-flow-tree">Code flow tree</a></li>
+<li><a href="#objects-and-ownership">Objects and ownership</a></li>
+<li><a href="#one-simulation-step">One simulation step</a></li>
+<li><a href="#notation-and-units">Notation and units</a></li>
+<li><a href="#stock-and-state-register">Stock and state register</a></li>
+<li><a href="#engineers">Engineers</a></li>
+<li><a href="#remaining-design-work">Remaining design work</a></li>
+<li><a href="#certification-progress">Certification progress</a></li>
+<li><a href="#production-capacity">Production capacity</a></li>
+<li><a href="#backlog-and-deliveries">Backlog and deliveries</a></li>
+<li><a href="#cash-npv-and-exposure">Cash, NPV and exposure</a></li>
+<li><a href="#shocks-and-scenario-sampling">Shocks and scenario sampling</a></li>
+<li><a href="#adaptive-decision-logic">Adaptive decision logic</a></li>
+<li><a href="#robustness-and-decision-audits">Robustness and decision audits</a></li>
+<li><a href="#browser-functions-and-data-contracts">Browser functions and data contracts</a></li>
+<li><a href="#worked-first-step">Worked first step</a></li>
+<li><a href="#assumptions-and-limitations">Assumptions and limitations</a></li>
+<li><a href="#where-to-change-things">Where to change things</a></li>
+<li><a href="#validation-and-tests">Validation and tests</a></li>
+</ol>
+<p>For causal relationships between the stocks, see <a href="#feedback-and-cross-stock-interactions">Feedback and cross-stock interactions</a>.</p>
+<p>Also see the <a href="#param-world-parameters">complete parameter reference</a>, <a href="../README.md">setup README</a> and <a href="MODEL.md">brief model notes</a>. Open <code>index.html</code> for the offline version with search, a fixed navigation menu and an embedded source browser.</p>
+</section>
+<section class="guide-section" id="the-model-in-one-minute"><h2>The model in one minute</h2>
+<p>The Python model answers “what happens if these conditions and actions occur?” The policy layer answers “which action should be active now?” The browser sends inputs, then displays returned trajectories; drawing a graph does not integrate the model again.</p>
+<p>The main chain is:</p>
+<pre><code>Available engineers
+  -&gt; design completion and rework
+    -&gt; design finished
+      -&gt; certification progress
+        -&gt; certification finished / entry into service
+          -&gt; orders + production ramp
+            -&gt; backlog-limited deliveries
+              -&gt; revenue, production costs and learning
+                -&gt; cash, discounted value and peak funding exposure
+                  -&gt; adaptive staffing/protection/exit decisions</code></pre>
+<p>Staffing has an ongoing cost even after design finishes. A staffing shortage also increases rework, extending the program and its costs. This feedback is why the model uses accumulating stocks rather than a single static financial calculation.</p>
+</section>
+<section class="guide-section" id="code-flow-tree"><h2>Code flow tree</h2>
+<p>This is a call/ownership tree, not a directory listing. It shows what calls what.</p>
+<pre><code>Interactive application
+run.py
+  -&gt; changes working directory to repository root
+  -&gt; runs vgc_sd.server as __main__
+     -&gt; ThreadingHTTPServer on 127.0.0.1
+        -&gt; Handler.do_GET(&#x27;/&#x27;) -&gt; sends app.html
+        -&gt; Handler.do_GET(&#x27;/health&#x27;) -&gt; API capabilities
+        -&gt; Handler.do_POST(&#x27;/run&#x27;)
+           -&gt; experiment(request)
+              -&gt; Parameters(**request.parameters) -&gt; validate baseline
+              -&gt; seeded Latin hypercube columns
+              -&gt; for each future: sampled Parameters + realized shock list
+                 -&gt; for each policy: NEW World(future, events)
+                    -&gt; World owns a NEW mutable State
+                    -&gt; while time &lt; horizon
+                       -&gt; observe() -&gt; dictionary snapshot of State
+                       -&gt; policy review / pending implementation -&gt; Action
+                       -&gt; optional continuation(world, action), twice
+                          -&gt; deepcopy World -&gt; integrate each private branch
+                       -&gt; step(Action) -&gt; update original State + return row
+                    -&gt; collect rows, decisions, audit branches and summary
+           -&gt; JSON response -&gt; browser result object -&gt; charts/dashboard
+        -&gt; Handler.do_POST(&#x27;/robustness&#x27;)
+           -&gt; robustness(request)
+              -&gt; for each exposure limit: deepcopy original request
+                 -&gt; experiment(..., include_counterfactuals=False)
+                 -&gt; keep adaptive summaries for the matrix
+
+Separate CSV / offline-report application
+python -m vgc_sd
+  -&gt; __main__.main()
+     -&gt; read config/baseline.json, optionally override --years
+     -&gt; 3 staffing values x 3 fixed actions
+        -&gt; simulate(Parameters, policy_callback)
+           -&gt; NEW World (without explicit event shocks)
+           -&gt; observe -&gt; callback returns Action -&gt; step -&gt; collect rows
+     -&gt; CSVs + manifest.json
+     -&gt; report.write_report(...) -&gt; standalone report.html</code></pre>
+<p>The two entry points are deliberately distinct: the CSV runner does not call the DOE/adaptive <code>experiment()</code> function. It retains the legacy single staffing shock defined by its parameters.</p>
+</section>
+<section class="guide-section" id="objects-and-ownership"><h2>Objects and ownership</h2>
+<div class="table-scroll"><table>
+<tr><th>Object</th><th>Where it lives</th><th>Responsibility</th><th>Can it change?</th></tr>
+<tr><td><code>Parameters</code></td><td><a href="#source-model-6">model.py</a></td><td>Numerical assumptions for one world</td><td>Frozen dataclass; create a replacement to change it</td></tr>
+<tr><td><code>Action</code></td><td><a href="#source-model-50">model.py</a></td><td>Three booleans: hire, protect, exit</td><td>Frozen dataclass; a new action replaces the old one</td></tr>
+<tr><td><code>State</code></td><td><a href="#source-model-57">model.py</a></td><td>Current accumulated values and event flags</td><td>Mutable, updated by <code>World.step()</code></td></tr>
+<tr><td><code>World</code></td><td><a href="#source-model-72">model.py</a></td><td>Owns parameters, shocks and exactly one current state</td><td>Evolves its state over time</td></tr>
+<tr><td>observation</td><td><code>World.observe()</code></td><td>Copy of current State as a dictionary</td><td>Caller can edit its copy without editing World</td></tr>
+<tr><td>experiment request</td><td>Python/JSON dictionary</td><td>Baseline inputs, ranges, shocks and policy settings</td><td>Configuration input, not a world state</td></tr>
+<tr><td>experiment result</td><td>Python/JSON dictionary</td><td>Independent runs, rows, decisions, summaries and branches</td><td>Returned snapshots for plotting/export</td></tr>
+<tr><td><code>Handler</code></td><td><a href="#source-server-10">server.py</a></td><td>Converts HTTP requests to function calls</td><td>One request handler per connection</td></tr>
+<tr><td>browser <code>result</code></td><td><code>app.html</code></td><td>Holds the last completed experiment in memory</td><td>Replaced after a new experiment</td></tr>
+</table></div>
+<p>There is no <code>DAPP</code> Python class, database or generic solver object. Adaptive policy memory is held in local variables inside <code>experiment()</code>: <code>action</code>, <code>pending</code>, <code>next_review</code> and <code>logs</code>. Shock events are ordinary dictionaries. <code>World.shocks</code> is a tuple of those dictionaries, not a typed shock class; experiment code treats them as read-only. Each policy gets an independent World, so stocks do not leak between runs.</p>
+<p class="note">The class diagram below is Mermaid source, rendered as a diagram on GitHub. The ownership tree and diagram above cover the same relationships offline.</p>
+<pre><code>classDiagram
+    class Parameters {
+      frozen numerical configuration
+    }
+    class Action {
+      bool hire
+      bool protect
+      bool exit
+    }
+    class State {
+      mutable accumulated values
+      time and event flags
+    }
+    class World {
+      Parameters p
+      State s
+      tuple shocks
+      observe() dictionary
+      step(Action) dictionary
+    }
+    World --&gt; Parameters : references
+    World *-- State : owns
+    World ..&gt; Action : consumes</code></pre>
+</section>
+<section class="guide-section" id="one-simulation-step"><h2>One simulation step</h2>
+<p>Source: <a href="#source-model-84">World.step</a>. A step uses rates from the start of the interval to compute stocks at its end.</p>
+<pre><code>1. Set h = min(dt, horizon - current_time).
+2. If the action exits, set exited=True.
+3. If exited: advance only time, return frozen stocks and zero main flows.
+4. Determine shocks active at the START of the interval.
+5. Calculate losses, hires and staffing pressure.
+6. Calculate design completion and rework.
+7. Calculate certification progress using OLD design work.
+8. Determine market/production activity using OLD certification progress.
+9. Calculate capacity, orders, deliveries, learning and financial rates.
+10. Apply all stock updates using h.
+11. Update time, peak exposure and first entry-into-service timestamp.
+12. Return end-of-interval State plus rates used during that interval.</code></pre>
+<p>Important gate timing: if design finishes in this step, certification starts on a later step. If certification finishes in this step, orders and ramp activity start on a later step. Deliveries use old capacity and backlog; same-step orders cannot immediately be delivered. These are implementation choices, not separate physical delays calibrated from evidence.</p>
+<p>A returned row at year <code>t+h</code> contains <strong>end stocks</strong> and the <strong>interval rates</strong> that produced them. The initial observation has stocks only. After exit, <code>revenue</code>, <code>spending</code>, <code>certification_rate</code> and <code>capacity_change</code> are absent from returned rows; consumers use zero defaults for these missing rates. The other main flow keys are explicitly zero. This schema asymmetry matters when writing new data consumers.</p>
+</section>
+<section class="guide-section" id="notation-and-units"><h2>Notation and units</h2>
+<div class="table-scroll"><table>
+<tr><th>Symbol</th><th>Code field / meaning</th><th>Unit</th></tr>
+<tr><td><code>t</code>, <code>h</code></td><td>beginning time, actual step length</td><td>years from launch, years</td></tr>
+<tr><td><code>E</code>, <code>R</code></td><td><code>engineers</code>, <code>required_engineers</code></td><td>full-time-equivalent engineers (FTE)</td></tr>
+<tr><td><code>W</code></td><td><code>work</code> remaining</td><td>FTE-years</td></tr>
+<tr><td><code>Z</code></td><td><code>certification</code></td><td>fraction, 0 to 1</td></tr>
+<tr><td><code>K</code></td><td><code>capacity</code></td><td>aircraft/year</td></tr>
+<tr><td><code>B</code>, <code>D</code></td><td><code>backlog</code>, cumulative <code>delivered</code></td><td>aircraft</td></tr>
+<tr><td><code>C</code>, <code>V</code>, <code>X</code></td><td><code>cash</code>, <code>npv</code>, <code>peak_exposure</code></td><td>constant USD million</td></tr>
+<tr><td><code>m</code>, <code>u</code>, <code>s</code></td><td>demand, productivity, supply factors</td><td>dimensionless</td></tr>
+<tr><td>suffix <code>next</code></td><td>end-of-step value</td><td>same as the stock</td></tr>
+</table></div>
+<p>Flows have units per year. Updates generally use <code>stock_next = stock + h * net_rate</code>. <code>cert_delta</code> is already an interval increment and is not multiplied by <code>h</code> again. Production capacity is itself a stock measured in aircraft/year, so its adjustment rate is aircraft/year squared.</p>
+</section>
+<section class="guide-section" id="stock-and-state-register"><h2>Stock and state register</h2>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Type of quantity</th><th>Initial condition</th><th>Main driver</th></tr>
+<tr><td><code>engineers</code></td><td>resource stock</td><td>required engineers × availability</td><td>hiring minus losses</td></tr>
+<tr><td><code>work</code></td><td>remaining workload stock</td><td><code>design_work</code></td><td>rework minus completion</td></tr>
+<tr><td><code>certification</code></td><td>progress accumulator</td><td>0</td><td>readiness-gated progress</td></tr>
+<tr><td><code>capacity</code></td><td>capability stock</td><td>0</td><td>adjustment toward target</td></tr>
+<tr><td><code>backlog</code></td><td>order stock</td><td>0</td><td>orders minus deliveries</td></tr>
+<tr><td><code>delivered</code></td><td>cumulative output</td><td>0</td><td>deliveries</td></tr>
+<tr><td><code>cash</code></td><td>net cash accumulator</td><td>negative <code>capex</code></td><td>revenue minus spending</td></tr>
+<tr><td><code>npv</code></td><td>discounted cash accumulator</td><td>negative <code>capex</code></td><td>discounted net cashflow</td></tr>
+<tr><td><code>peak_exposure</code></td><td>running historical maximum</td><td><code>capex</code></td><td>maximum funding requirement reached</td></tr>
+<tr><td><code>time</code></td><td>simulation clock</td><td>0</td><td>advances by h</td></tr>
+<tr><td><code>eis</code></td><td>first-event timestamp</td><td><code>None</code></td><td>first end-step certification at 1</td></tr>
+<tr><td><code>exited</code></td><td>absorbing status flag</td><td><code>False</code></td><td>exit Action</td></tr>
+</table></div>
+<p><code>npv</code> and <code>peak_exposure</code> are accounting measures, not conserved physical stocks. <code>eis</code> and <code>exited</code> are events/status. Calling every plotted field a “stock” would hide these distinctions.</p>
+</section>
+<section class="guide-section" id="engineers"><h2>Engineers</h2>
+<p>Source: <a href="#source-model-84">World.step</a>. Initial engineers: <code>E0 = R * availability</code>. Availability 0.8 means 80% of the program requirement, not 80% of the corporation&#x27;s workforce.</p>
+<pre><code>diversion_rate = diversion + legacy_shock_if_started + active_diversion_magnitudes
+if protect: diversion_rate = 0.2 * diversion_rate
+
+losses = min(E/h, E * (attrition + diversion_rate))
+hires  = max(0, R-E)/hiring_delay + losses    if hire
+         0                                 otherwise
+
+E_next = E + h * (hires - losses)</code></pre>
+<p>Assumptions: engineers are homogeneous; protection does not reduce attrition; hiring immediately replaces current losses while gradually closing the staffing gap. The <code>hiring_delay</code> parameter is an adjustment time, not a recruitment pipeline with no initial hires. Hiring cannot deliberately expand staffing above R. Loss capping prevents negative engineers.</p>
+<p>Consequence worth noticing: with hire enabled, net staffing change simplifies to <code>max(0,R-E)/hiring_delay</code>. Diversion increases gross hires, but does not reduce net staffing in this formulation. If availability exceeds 1, enabled hiring replaces losses and keeps staffing above R rather than bringing it down. These behaviors should be revisited if realistic recruitment constraints are central.</p>
+</section>
+<section class="guide-section" id="remaining-design-work"><h2>Remaining design work</h2>
+<pre><code>pressure  = max(0, 1 - E/R)
+completed = min(W/h, E * u)                  if W &gt; 1e-9
+            0                              otherwise
+rework    = completed * rework_fraction * min(1, pressure)
+W_next    = max(0, W + h * (rework - completed))
+if W_next &lt; 1e-9: W_next = 0</code></pre>
+<p>Initial workload is <code>design_work</code>, in FTE-years. At productivity factor 1, one engineer supplies one FTE-year per year. Rework is a fraction of completed work, not a separate inspection/discovery stock. It returns to the same workload immediately. Pressure increases only when staffing is below requirement. Productivity shocks reduce gross completion, and therefore also reduce the volume of rework generated in that interval. There is no skill mix, burnout, task dependency or explicit technology subsystem model.</p>
+</section>
+<section class="guide-section" id="certification-progress"><h2>Certification progress</h2>
+<pre><code>cert_rate  = u * min(1, E/R) / certification_years
+             only if OLD W == 0 and OLD Z &lt; 1; otherwise 0
+cert_delta = min(1-Z, cert_rate * h)
+Z_next     = Z + cert_delta
+
+if Z_next &gt;= 1 and eis is None: eis = t+h</code></pre>
+<p>Certification is a progress proxy that uses the full staffing ratio, not a separately allocated team. It cannot exceed one; additional engineers above requirement do not accelerate it. Productivity shocks also slow certification. No explicit regulator queue, approval uncertainty, rejected tests or certification regression exists. Nominal certification time assumes sufficient staffing and no productivity shock. Total certification spending is tied to progress, so a pure delay does not increase that budget; it increases ongoing engineering/overhead costs instead.</p>
+</section>
+<section class="guide-section" id="production-capacity"><h2>Production capacity</h2>
+<pre><code>active = (OLD Z &gt;= 1)
+capacity_rate = (capacity_target-K)/ramp_years    if active
+                0                              otherwise
+K_next = K + h * capacity_rate</code></pre>
+<p>Capacity starts at zero and rises by first-order adjustment after certification. It does not wait for deliveries, demand or a cash-availability check. There is no depreciation, plant construction stock, production workforce or supplier investment model. Supply shocks limit current deliveries; they do not destroy capacity. The current validation requires <code>dt &lt;= ramp_years</code>, supporting a bounded non-oscillatory adjustment from the initial zero capacity.</p>
+</section>
+<section class="guide-section" id="backlog-and-deliveries"><h2>Backlog and deliveries</h2>
+<pre><code>orders = m * market_units * (1+market_growth)^t * capture_share    if active
+         0                                                      otherwise
+deliveries = min(K*s, B/h)                                       if active
+             0                                                  otherwise
+
+B_next = B + h * (orders-deliveries)
+D_next = D + h * deliveries</code></pre>
+<p>Initial backlog and deliveries are both zero. Market units are an annual demand rate, not fleet size. Growth compounds annually with a continuous year exponent. Capture share is fixed and not a market-share stock. Market growth is nonnegative under current parameter validation; temporary demand reductions use shocks instead. There are no pre-certification orders/deposits, cancellations, replacement-fleet dynamics, rival choices or delivery inventory. Fractional aircraft are expected because this is a continuous model.</p>
+<p>Deliveries only use the backlog and capacity available at the interval start. That convention, plus zero initial backlog/capacity, adds small numerical gate delays even after certification.</p>
+</section>
+<section class="guide-section" id="cash-npv-and-exposure"><h2>Cash, NPV and exposure</h2>
+<pre><code>learned_unit_cost = unit_cost * max(1, D/10)^(-learning_exponent)
+learned_unit_cost = max(0.6*unit_cost, learned_unit_cost)
+
+revenue = price * deliveries
+spending = learned_unit_cost * deliveries
+           + engineer_cost * E + overhead
+           + certification_cost * cert_delta/h
+           + (protection_cost if protect else 0)
+net_flow = revenue - spending
+
+C_next = C + h * net_flow
+V_next = V + h * net_flow / (1+discount_rate)^(t+h)
+X_next = max(X, -C_next)</code></pre>
+<p>Initial <code>C = V = -capex</code>, <code>X = capex</code>. The code calculates <code>flow</code> with an algebraically equivalent expanded expression. Revenue is recognized at delivery. Costs and money are real, constant USD million. Engineer cost is per FTE/year; price and unit cost are per aircraft. The learning reference of 10 aircraft and cost floor of 60% are hard-coded assumptions, not editable parameters. No learning benefit applies below 10 cumulative deliveries.</p>
+<p>Peak exposure never decreases even when cash recovers. It measures historical funding need, not current burn or a corporate bank balance. Discounted NPV starts negative and includes no terminal value. No tax, interest, borrowing constraint, working capital, inflation, currency conversion, service income or salvage exists. Unit cost implicitly includes production labor, while program engineers are charged separately; calibration must avoid overlapping cost definitions.</p>
+<p>If <code>exit=True</code>, only time advances. Work, engineers, certification, cash, NPV, exposure and deliveries freeze. No severance, wind-down costs or recoveries occur. This can mechanically make exit look financially attractive.</p>
+</section>
+<section class="guide-section" id="shocks-and-scenario-sampling"><h2>Shocks and scenario sampling</h2>
+<p>Source: <a href="#source-experiment-30">experiment</a>. A future is a sampled parameter set plus a realized list of shock events. A policy is an action rule. These are separate dimensions: all four policies face the same future.</p>
+<p>For N futures and a range [low, high], each Latin hypercube column draws:</p>
+<pre><code>value_j = low + (high-low) * (j + Uniform(0,1)) / N
+j = 0 ... N-1
+shuffle the column independently before combining columns</code></pre>
+<p>Supported parameter ranges are <code>availability</code>, <code>market_growth</code>, <code>hiring_delay</code>, <code>certification_years</code>. Each shock independently samples start, duration and magnitude with the same procedure. Equal endpoints fix a value. No distributional likelihood or correlations are inferred. Reproducibility requires the seed, source revision, request structure and ordering; reordering ranges/events changes how the random stream is consumed.</p>
+<p>An event is active if <code>start &lt;= t &lt; start+duration</code>, evaluated at the step start. Durations can extend beyond the horizon. A legacy optional jitter shifts the sampled start and clamps it to [0,horizon]; the current UI sends zero jitter.</p>
+<div class="table-scroll"><table>
+<tr><th>Type</th><th>Combination while active</th><th>Main formula affected</th></tr>
+<tr><td>diversion</td><td>add event magnitudes to annual diversion rate</td><td>losses; moderated by protection</td></tr>
+<tr><td>demand</td><td>m = product of (1-magnitude)</td><td>order inflow</td></tr>
+<tr><td>productivity</td><td>u = product of (1-magnitude)</td><td>design completion and certification</td></tr>
+<tr><td>supply</td><td>s = product of (1-magnitude)</td><td>delivery throughput</td></tr>
+</table></div>
+<p>Two 20% demand shocks give <code>m=0.8*0.8=0.64</code>, a 36% reduction, not 40%. Events are deterministic once sampled and have rectangular time profiles. Every listed event happens once in every future; no probability of occurrence or sampled event count exists. Capacity/financial consequences may persist after a shock ends. Browser <code>shockEffects</code> filters visual overlays; it does not control the equations or eliminate indirect effects.</p>
+</section>
+<section class="guide-section" id="adaptive-decision-logic"><h2>Adaptive decision logic</h2>
+<p>Policy state is inside <a href="#source-experiment-30">experiment</a>. The full world does not know which policy name is running; it only receives Action booleans.</p>
+<pre><code>At the START of each integration interval:
+  A. If a pending action is due:
+       optionally create two audit branches from the pre-action world
+       replace current Action; log implementation; clear pending
+  B. If a review is due and world has not exited:
+       schedule next_review = now + review_interval
+       ratio = engineers / required_engineers
+       desired.hire = current.hire OR ratio &lt; hire_at
+       desired.protect = current.protect OR ratio &lt; protect_at
+       desired.exit = peak_exposure &gt;= cash_limit
+       if desired differs and no pending action:
+          queue desired for now + latency
+          log trigger values, reasons and decision ID
+  C. World.step(current Action)</code></pre>
+<p>The first review is at time zero. Hire/protect use strict <code>&lt;</code>; exit uses <code>&gt;=</code>. Protection can trigger simultaneously with hiring. Escalation is irreversible for hire/protect. Actions are packages of three booleans, not independent queued interventions. Pending actions cannot be cancelled or upgraded; an exposure breach can wait behind a pending staffing action. Reviews use observed stocks, not future shocks.</p>
+<p>An exit threshold is a policy signpost, not a hard funding cap: exposure can keep increasing between crossing, review and implementation. Reviews and action times are snapped to integration steps. Even zero configured latency implements no earlier than the next loop because implementation is checked before the current review. The observed state is copied before implementation and <code>step()</code> marks exit later in the loop; event/state timestamps therefore require careful reading near exit.</p>
+<pre><code>Baseline -- staffing below hire threshold --&gt; Hire
+   |                                         |
+   +-- below protect threshold --------------+--&gt; Protect + hire
+   |                                         |          |
+   +--------------- exposure &gt;= limit -------+----------+--&gt; Exit
+
+Every transition includes review timing and implementation delay.</code></pre>
+<p>These are candidate DAPP rules; there is no pathway optimizer, RL agent or formal tipping-point solver. Fixed policies are baseline (all flags false), hire (hire true) and protect_hire (hire/protect true). Browser colors label implemented actions, not a mathematical bifurcation.</p>
+</section>
+<section class="guide-section" id="robustness-and-decision-audits"><h2>Robustness and decision audits</h2>
+<p>Source: <a href="#source-experiment-134">robustness</a> and <a href="#source-experiment-16">continuation</a>.</p>
+<p>Robustness reuses the request and seed for each exposure limit, disables counterfactual calculations, calls the full experiment again and returns adaptive summaries. The same future ID has the same inputs/shocks at each limit. All four policies are currently simulated internally even though only adaptive summaries are returned. The browser applies:</p>
+<pre><code>success = not exited
+          AND eis is not None AND eis &lt;= selected_latest_EIS
+          AND npv &gt;= selected_minimum_NPV
+coverage = count(successful sampled futures) / count(sampled futures)</code></pre>
+<p>Coverage is a design-space fraction, not an estimated probability. Changing criteria reclassifies completed summaries; changing the actual cash trigger requires simulation. NPV/EIS criteria and sweep results live in browser state separately from the experiment result. They are not included in the current main experiment JSON export; record them with research notes.</p>
+<p>For a decision audit, <code>continuation()</code> deep-copies the entire pre-implementation World. Two branches start with identical stocks and shocks. One holds the prior Action and the other holds the new Action for the remainder of the horizon. Future adaptive changes are disabled in both. This tests a decision package conditional on this particular state/future; it is neither empirical causality nor a replay of the eventual adaptive path.</p>
+<p>Branch revenue/spending are integrated from that branch point. Extra revenue minus extra spending equals the branch difference in final undiscounted cash. NPV still includes shared pre-decision history, which cancels in a difference. Peak exposure also includes shared historical exposure; its difference is the additional project funding burden, not a fresh post-decision maximum.</p>
+</section>
+<section class="guide-section" id="browser-functions-and-data-contracts"><h2>Browser functions and data contracts</h2>
+<p>Source: <a href="../vgc_sd/app.html">app.html</a>. It is plain JavaScript without a framework or external plotting library.</p>
+<div class="table-scroll"><table>
+<tr><th>Function/group</th><th>What it does</th><th>Does it run Python?</th></tr>
+<tr><td><code>request()</code></td><td>Reads current fields into a JSON-ready request</td><td>No</td></tr>
+<tr><td>run-button handler</td><td>POSTs request to <code>/run</code>, replaces <code>result</code>, sets up views</td><td>Yes</td></tr>
+<tr><td><code>readApiResponse()</code></td><td>Parses JSON or explains stale-server/HTTP errors</td><td>No</td></tr>
+<tr><td><code>render()</code>, <code>at()</code></td><td>Selects future and most recent row at/before slider time</td><td>No</td></tr>
+<tr><td><code>drawAdaptiveChart()</code>, <code>segments()</code></td><td>Plots one adaptive trajectory, colors action segments</td><td>No</td></tr>
+<tr><td><code>drawPathways()</code>, <code>drawDecisions()</code></td><td>Builds DAPP bands, trigger details and decision table</td><td>No</td></tr>
+<tr><td><code>diagram()</code></td><td>Draws current stock/flow network</td><td>No</td></tr>
+<tr><td><code>relevantShocks()</code>, <code>shockBands()</code>, <code>shockTracks()</code></td><td>Filters and renders descriptive overlays</td><td>No</td></tr>
+<tr><td><code>setupDashboard()</code>, <code>drawDashboard()</code>, <code>ensembleChart()</code></td><td>Builds future fingerprints and staffing/finance views</td><td>No</td></tr>
+<tr><td><code>criteria()</code>, <code>succeeds()</code></td><td>Applies dashboard success criteria</td><td>No</td></tr>
+<tr><td><code>explainFuture()</code></td><td>Finds first recorded crossing, review and implementation</td><td>No</td></tr>
+<tr><td>sweep-button handler</td><td>POSTs experiment request and limits to <code>/robustness</code></td><td>Yes</td></tr>
+<tr><td><code>drawSweep()</code></td><td>Colors returned future/limit cells against current criteria</td><td>No</td></tr>
+<tr><td><code>drawDecisionEffect()</code></td><td>Renders precomputed same-state audit branches</td><td>No</td></tr>
+<tr><td><code>download()</code> and file-load handler</td><td>Saves/loads JSON in browser</td><td>No</td></tr>
+</table></div>
+<pre><code>Request
+  parameters: {horizon, dt, required_engineers, ...}
+  ranges: {availability: [min,max], ...}
+  samples, seed
+  shocks: [{kind, start_range, duration_range, magnitude_range}, ...]
+  adaptive: {hire_at, protect_at, cash_limit, review, latency}
+
+Result
+  request, seed, note
+  runs[]
+    run, future, policy
+    parameters, shocks
+    rows[]                 end-step states + interval flow rates
+    decisions[]            triggered / implemented, ID, action, reasons
+    counterfactuals[]       paired keep/change continuations
+    summary                eis, npv, peak_exposure, delivered, exited</code></pre>
+<p>The server stores no experiment database. Browser refresh discards in-memory results. The slider chooses existing rows; hover only shows tooltips. The browser health endpoint does not report the entire source revision; it only advertises API capabilities. Restart Python after backend changes.</p>
+</section>
+<section class="guide-section" id="worked-first-step"><h2>Worked first step</h2>
+<p>Use <code>Parameters()</code> defaults with baseline Action at t=0. No event shock is active and the legacy permanent shock starts in year 3. Here h=1/52, R=1000, E=800 and W=6000.</p>
+<pre><code>losses = 800 * (0.04+0.08) = 96 FTE/year
+hires = 0
+E_next = 800 - 96/52 = 798.153846 FTE
+
+pressure = 1-800/1000 = 0.2
+completed = 800 FTE-years/year
+rework = 800 * 0.12 * 0.2 = 19.2 FTE-years/year
+W_next = 6000 + (19.2-800)/52 = 5984.984615 FTE-years
+
+certification = capacity = orders = deliveries = 0
+revenue = 0
+spending = 800*0.18 + 40 = 184 USD million/year
+cash_next = -500 - 184/52 = -503.538462 USD million
+peak_exposure_next = 503.538462 USD million
+npv_next = -500 - (184/52)/(1.08)^(1/52)</code></pre>
+<p>Under <code>Action(hire=True)</code>, hires become <code>200/1.5 + 96 = 229.333333 FTE/year</code>, so E_next becomes 802.564103. <strong>Design progress and engineering costs in this first interval still use the original 800 engineers</strong>, because rates use the beginning state. New hires affect those calculations on subsequent intervals.</p>
+</section>
+<section class="guide-section" id="assumptions-and-limitations"><h2>Assumptions and limitations</h2>
+<div class="table-scroll"><table>
+<tr><th>Topic</th><th>Current assumption</th><th>Why it matters / evidence needed</th></tr>
+<tr><td>workforce</td><td>homogeneous, instant replacement of losses when hiring</td><td>Can understate diversion/hiring constraints; need skill/pipeline data</td></tr>
+<tr><td>allocation</td><td>same engineer stock drives both design and certification</td><td>No explicit specialist allocation or production staffing</td></tr>
+<tr><td>rework</td><td>immediate staffing-pressure function</td><td>No measured defect discovery/recovery process</td></tr>
+<tr><td>readiness</td><td>design work then scalar certification progress</td><td>Not technology TRL, regulator approval or systems integration evidence</td></tr>
+<tr><td>investment</td><td>capex at t=0; capacity ramps automatically</td><td>No staged capex, industrial build stock or liquidity checks</td></tr>
+<tr><td>market</td><td>fixed capture share and nonnegative trend growth</td><td>No endogenous customer choice, competitors or declining trend scenario</td></tr>
+<tr><td>production</td><td>backlog/capacity-limited, continuous aircraft</td><td>No materials stock, integer schedules or cancellations</td></tr>
+<tr><td>learning</td><td>reference 10 aircraft, 60% cost floor</td><td>Hard-coded; requires evidence and potential parameterization</td></tr>
+<tr><td>finance</td><td>constant USD, revenue at delivery</td><td>No deposits, tax, debt, inflation, FX, service income or terminal value</td></tr>
+<tr><td>exit</td><td>freezes operations/cash with no closure cost</td><td>Can overvalue exit and distort robustness comparisons</td></tr>
+<tr><td>uncertainty</td><td>independent ranges/events, every event occurs</td><td>Coverage is not probability; correlations may be important</td></tr>
+<tr><td>decisions</td><td>threshold rules, irreversible escalation, queued delay</td><td>Not optimized DAPP; pending actions may block timely exit</td></tr>
+<tr><td>numerics</td><td>explicit Euler and step-based gates</td><td>Outcomes can change with step size near certification/exit</td></tr>
+<tr><td>visuals</td><td>channel-based overlays and event markers</td><td>Not causal attribution or detection of mathematical tipping points</td></tr>
+</table></div>
+<p>Default sources differ: <code>Parameters.horizon</code> is <strong>25 years</strong>, interactive HTML defaults and the supplied CSV config use <strong>20 years</strong>. UI fields are built from JavaScript <code>defaults</code>, not loaded from <code>config/baseline.json</code>. The UI disables <code>shock_diversion</code>; the CSV config does not. Always retain the complete request when comparing results. No project input has been calibrated merely because a number resembles a presentation figure.</p>
+</section>
+<section class="guide-section" id="feedback-and-cross-stock-interactions"><h2>Feedback and cross-stock interactions</h2>
+<div class="table-scroll"><table>
+<tr><th>Source quantity</th><th>Direct influence</th><th>Downstream consequence</th></tr>
+<tr><td>engineers</td><td>completion, rework pressure, certification rate and engineering spend</td><td>schedule and exposure</td></tr>
+<tr><td>remaining work</td><td>gates certification start</td><td>delays production/orders and revenue</td></tr>
+<tr><td>certification</td><td>gates capacity adjustment and orders</td><td>enables delivery accumulation</td></tr>
+<tr><td>capacity and backlog</td><td>jointly limit deliveries</td><td>shape revenue and outstanding demand</td></tr>
+<tr><td>cumulative deliveries</td><td>lowers learned unit cost</td><td>improves operating cashflow</td></tr>
+<tr><td>cash</td><td>sets historical peak exposure</td><td>can trigger exit at a later review</td></tr>
+<tr><td>staffing ratio</td><td>triggers hiring/protection</td><td>changes the action supplied to future steps</td></tr>
+<tr><td>exit</td><td>freezes operational stocks and cash</td><td>truncates remaining program activity</td></tr>
+</table></div>
+<p>The equations and policy interact through information signals as well as physical/accounting flows. Money does not literally flow into engineer headcount; the policy changes a rate rule. Certification fraction does not literally transfer into production capacity; it gates a capability adjustment.</p>
+<pre><code>Staff shortage -&gt; lower design completion + greater rework fraction
+              -&gt; more work remaining -&gt; later certification
+              -&gt; revenue starts later -&gt; cash exposure can grow
+              -&gt; policy may exit -&gt; operational stocks freeze
+
+Staff shortage -&gt; hiring signpost -&gt; queued hiring Action
+              -&gt; staffing gap closes -&gt; shortage shrinks
+
+Delivered aircraft -&gt; experience -&gt; lower unit cost
+                   -&gt; better contribution per aircraft -&gt; improved net cash</code></pre>
+<p>Not every arrow forms a closed endogenous loop. Market demand does not respond to deliveries, price or reputation in the current implementation. Cash availability does not constrain hiring, capex or ramp directly; it only informs the optional exit rule. Protection while hire is already active reduces gross losses and replacement hiring, but the simplified net staffing recovery is unchanged because hiring replaces all losses. Recognizing these open or simplified links helps identify where additional SD structure would be useful.</p>
+</section>
+<section class="guide-section" id="where-to-change-things"><h2>Where to change things</h2>
+<div class="table-scroll"><table>
+<tr><th>Goal</th><th>Start here</th><th>Also check</th></tr>
+<tr><td>change stock physics/economics</td><td><code>World.step()</code></td><td>balance/gating tests, units, docs</td></tr>
+<tr><td>add a stock</td><td><code>State</code>, <code>World.__init__</code>, <code>World.step</code></td><td>exit branch, observations, results, plots and tests</td></tr>
+<tr><td>add an editable parameter</td><td><code>Parameters</code></td><td>HTML defaults/units, validation, examples, parameter reference</td></tr>
+<tr><td>sample another parameter</td><td><code>experiment()</code> supported-range allowlist</td><td>HTML ranges UI, input loading and tests</td></tr>
+<tr><td>add a shock type</td><td>shock validation and World shock loop</td><td>HTML kind selector, descriptions, overlay channel map</td></tr>
+<tr><td>change adaptive rules</td><td>policy loop inside <code>experiment()</code></td><td>reason strings, action memory, tests and UI naming</td></tr>
+<tr><td>change event latency</td><td>adaptive settings / loop ordering</td><td>grid timing and pending-action behavior</td></tr>
+<tr><td>change dashboard success</td><td><code>criteria()</code> / <code>succeeds()</code></td><td>no backend rerun needed for criteria alone</td></tr>
+<tr><td>change the sensitivity analysis</td><td><code>robustness()</code> and sweep handler</td><td>paired-future reproducibility and response contract</td></tr>
+<tr><td>change charts/tooltips/layout</td><td><code>app.html</code></td><td>browser runtime checks, no equation changes needed</td></tr>
+<tr><td>change offline CSV comparisons</td><td><code>__main__.py</code>, <code>report.py</code>, <code>report.html</code></td><td>separate from interactive DOE/policy path</td></tr>
+</table></div>
+</section>
+<section class="guide-section" id="validation-and-tests"><h2>Validation and tests</h2>
+<div class="table-scroll"><table>
+<tr><th>File</th><th>What it checks</th></tr>
+<tr><td><code>tests/test_model.py</code></td><td>stock balances, no deliveries before certification, nonnegative stocks, zero staffing, absorbing exit, determinism, selected dt/2 comparison</td></tr>
+<tr><td><code>tests/test_experiment.py</code></td><td>Latin hypercube strata, matched shocks, reproducibility, shock expiry, decision IDs/reasons/delays, paired branches/cash reconciliation and identical-future robustness</td></tr>
+<tr><td><code>tests/test_report.py</code></td><td>embedded initial/final report data and offline script behavior</td></tr>
+<tr><td><code>tests/test_server.py</code></td><td>local health, HTML, simulation/sensitivity endpoints and JSON errors</td></tr>
+</table></div>
+<p>These checks support implementation consistency, not empirical validity. There is no exhaustive convergence proof, calibration suite, correlation validation or packaged real-browser test suite. When changing an equation, validate units, limiting cases and numerical sensitivity before interpreting output trends.</p>
+</section><p><a href="#navigation-and-reading-path">Back to the code guide</a> · <a href="index.html">Open the offline guide</a></p>
+<section class="guide-section" id="param-world-parameters"><h2>World parameters</h2>
+<p>These are the defaults declared by <code>Parameters</code>, not necessarily the current UI fields or a loaded experiment. Complete saved requests are the authoritative inputs for a run. All values must be finite and nonnegative. The exact validator is in <a href="#source-model-6">Parameters</a>.</p>
+<div class="table-scroll"><table>
+<tr><th>Code field</th><th>Python default</th><th>Unit</th><th>Meaning</th><th>Assumption / constraint</th></tr>
+<tr><td><code>horizon</code></td><td>25</td><td>years</td><td>Simulation end measured from launch</td><td>25 in Python; UI/config use 20</td></tr>
+<tr><td><code>dt</code></td><td>0.019230769</td><td>years</td><td>Integration step</td><td>1/52 = weekly; shortened at horizon</td></tr>
+<tr><td><code>required_engineers</code></td><td>1000</td><td>FTE</td><td>Reference staffing requirement</td><td>Positive; not corporate workforce</td></tr>
+<tr><td><code>availability</code></td><td>0.8</td><td>ratio</td><td>Initial staffing divided by required staffing</td><td>Can exceed 1; not a continuing external staffing multiplier</td></tr>
+<tr><td><code>hiring_delay</code></td><td>1.5</td><td>years</td><td>First-order staffing-gap adjustment time</td><td>Positive; not a fixed recruitment pipeline</td></tr>
+<tr><td><code>attrition</code></td><td>0.04</td><td>1/year</td><td>Baseline workforce departure rate</td><td>Nonnegative; protection does not reduce this</td></tr>
+<tr><td><code>diversion</code></td><td>0.08</td><td>1/year</td><td>Baseline diversion to other programs</td><td>Protection multiplies total diversion by 0.2</td></tr>
+<tr><td><code>shock_year</code></td><td>3</td><td>years</td><td>Start of legacy permanent diversion shock</td><td>Interactive UI disables its magnitude</td></tr>
+<tr><td><code>shock_diversion</code></td><td>0.12</td><td>1/year</td><td>Legacy permanent addition to diversion</td><td>UI sends zero; CSV example uses 0.12</td></tr>
+<tr><td><code>design_work</code></td><td>6000</td><td>FTE-years</td><td>Initial remaining design workload</td><td>Positive</td></tr>
+<tr><td><code>rework_fraction</code></td><td>0.12</td><td>fraction</td><td>Maximum pressure-scaled share of completion returned as rework</td><td>0 to 1</td></tr>
+<tr><td><code>certification_years</code></td><td>2</td><td>years</td><td>Nominal progress time at full staffing/productivity</td><td>Positive</td></tr>
+<tr><td><code>capacity_target</code></td><td>60</td><td>aircraft/year</td><td>Post-certification production capacity target</td><td>Nonnegative; no cash gate</td></tr>
+<tr><td><code>ramp_years</code></td><td>3</td><td>years</td><td>Capacity adjustment time</td><td>Positive; dt must not exceed this</td></tr>
+<tr><td><code>market_units</code></td><td>850</td><td>aircraft/year</td><td>Initial total annual demand rate</td><td>Not fleet size</td></tr>
+<tr><td><code>market_growth</code></td><td>0.03</td><td>fraction/year</td><td>Annual compounding demand trend</td><td>Nonnegative in current validator</td></tr>
+<tr><td><code>capture_share</code></td><td>0.06</td><td>fraction</td><td>Fixed share of market orders</td><td>0 to 1; not a dynamic share stock</td></tr>
+<tr><td><code>price</code></td><td>40</td><td>USD million/aircraft</td><td>Revenue per delivered aircraft</td><td>Constant real price</td></tr>
+<tr><td><code>unit_cost</code></td><td>32</td><td>USD million/aircraft</td><td>Initial unit production cost</td><td>Learning reference/floor hard-coded in step</td></tr>
+<tr><td><code>learning_exponent</code></td><td>0.08</td><td>dimensionless</td><td>Power-law cost reduction with cumulative deliveries</td><td>Nonnegative; zero disables learning</td></tr>
+<tr><td><code>engineer_cost</code></td><td>0.18</td><td>USD million/FTE/year</td><td>Annual program engineering cost</td><td>Charged throughout operations</td></tr>
+<tr><td><code>overhead</code></td><td>40</td><td>USD million/year</td><td>Fixed annual program operating overhead</td><td>Charged throughout operations</td></tr>
+<tr><td><code>certification_cost</code></td><td>300</td><td>USD million</td><td>Total cost at certification completion</td><td>Spent in proportion to actual progress</td></tr>
+<tr><td><code>capex</code></td><td>500</td><td>USD million</td><td>Time-zero project capital expenditure</td><td>No staged industrial investment</td></tr>
+<tr><td><code>protection_cost</code></td><td>25</td><td>USD million/year</td><td>Cost while protection is active</td><td>Does not depend on workforce size</td></tr>
+<tr><td><code>discount_rate</code></td><td>0.08</td><td>annual fraction</td><td>Effective real discount rate</td><td>Used at interval-end times</td></tr>
+</table></div>
+<p>Additional validation: horizon, dt, required engineers, hiring delay, design work, certification years and ramp years must be positive. dt must not exceed the smaller of hiring_delay and ramp_years. The experiment API additionally bounds horizon to 1–50 years and dt to 1/104–0.25 years. Supported sampled parameters are revalidated when constructing each future. No dimensional-analysis library checks units.</p>
+</section>
+<section class="guide-section" id="param-adaptive-policy-settings"><h2>Adaptive policy settings</h2>
+<p>These fields live in <code>request.adaptive</code>, not in <code>Parameters</code>.</p>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Default</th><th>Meaning</th><th>Constraint</th></tr>
+<tr><td><code>hire_at</code></td><td>0.85</td><td>Trigger hiring if engineers/required is strictly below this</td><td>0.1 to 1.5</td></tr>
+<tr><td><code>protect_at</code></td><td>0.7</td><td>Trigger protection if staffing ratio is strictly below this</td><td>0.1 to hire_at</td></tr>
+<tr><td><code>cash_limit</code></td><td>4000</td><td>Trigger exit if historical peak exposure is at least this</td><td>1 to 1,000,000 USD million; team example uses 2800</td></tr>
+<tr><td><code>review</code></td><td>0.25</td><td>Time between stock-based reviews</td><td>dt to 5 years</td></tr>
+<tr><td><code>latency</code></td><td>0.1</td><td>Requested trigger-to-implementation delay</td><td>0 to 5 years; grid ordering adds at least one loop</td></tr>
+</table></div>
+</section>
+<section class="guide-section" id="param-experiment-settings"><h2>Experiment settings</h2>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Default / accepted values</th><th>Meaning</th></tr>
+<tr><td><code>samples</code></td><td>8; API accepts 1–40 then converts to int</td><td>Number of futures; four policy runs each</td></tr>
+<tr><td><code>seed</code></td><td>42</td><td>Initializes local Python random generator</td></tr>
+<tr><td><code>ranges</code></td><td>Empty in API; UI prepopulates four ranges</td><td>Min/max Latin hypercube inputs; override fixed world parameters</td></tr>
+<tr><td><code>shocks</code></td><td>Empty in API; UI supplies example events</td><td>Up to 12 event descriptions; every event occurs once per future</td></tr>
+<tr><td><code>shock_jitter</code></td><td>0</td><td>Legacy uniform extra start shift, clamped to horizon; UI sends zero</td></tr>
+<tr><td><code>include_counterfactuals</code></td><td>True</td><td>Compute same-state decision audit branches; disabled during robustness sweeps</td></tr>
+</table></div>
+<p><code>samples</code> and <code>seed</code> are converted with int() in the backend. Supply integer values; fractional API inputs are not separate sampling modes. UI defaults are defined independently in app.html.</p>
+</section>
+<section class="guide-section" id="param-shock-event-settings"><h2>Shock event settings</h2>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Input shape / bound</th><th>Meaning</th></tr>
+<tr><td><code>kind</code></td><td>diversion, demand, productivity, supply</td><td>Equation channel</td></tr>
+<tr><td><code>start_range</code></td><td>[min,max], both 0–horizon</td><td>Sampled beginning year</td></tr>
+<tr><td><code>duration_range</code></td><td>[min,max], both 0.01–50 years</td><td>Sampled duration, may extend beyond horizon</td></tr>
+<tr><td><code>magnitude_range</code></td><td>[min,max], both 0–1</td><td>Annual rate addition for diversion; fractional reduction for other types</td></tr>
+</table></div>
+<p>Min must not exceed max. Equal min/max fixes a value. For API compatibility, <code>start</code>, <code>duration</code>, <code>magnitude</code> scalars can replace their ranges. Realized events returned in run.shocks always use scalar values. Example: diversion magnitude 0.2 adds 20 percentage points/year to the departure rate; it does not instantly remove 20% of engineers.</p>
+</section>
+<section class="guide-section" id="param-dashboard-settings"><h2>Dashboard settings</h2>
+<p>The browser starts with minimum NPV 0 USD million and latest acceptable EIS year 12. Success additionally requires no exit. These criteria are not policy thresholds and do not alter simulation trajectories. Exposure sweep values are alternative policy triggers; they do rerun Python. Neither the currently selected dashboard criteria nor computed sweep results are in the main experiment export.</p>
+</section>
+<section class="guide-section" id="param-built-in-constants-to-recognize"><h2>Built-in constants to recognize</h2>
+<div class="table-scroll"><table>
+<tr><th>Constant</th><th>Where</th><th>Current effect</th></tr>
+<tr><td>0.2</td><td>protection equation</td><td>Retains 20% of diversion rate</td></tr>
+<tr><td>10 aircraft</td><td>learning equation</td><td>Reference cumulative delivery quantity</td></tr>
+<tr><td>0.6</td><td>learned unit cost floor</td><td>Minimum 60% of original unit cost</td></tr>
+<tr><td>1e-9</td><td>design work</td><td>Near-zero completion tolerance</td></tr>
+<tr><td>1e-10 / 1e-9</td><td>loops / event comparisons</td><td>Floating-point timing tolerance</td></tr>
+</table></div>
+<p>These are not editable in the current UI. Changing them requires code changes and validation.</p>
+</section><section class="guide-section source" id="source-model"><h2>model.py — source browser</h2><pre><code><span id="source-model-1"><a class="ln" href="#source-model-1">  1</a> from dataclasses import dataclass, asdict</span>
+<span id="source-model-2"><a class="ln" href="#source-model-2">  2</a> import math</span>
+<span id="source-model-3"><a class="ln" href="#source-model-3">  3</a> </span>
+<span id="source-model-4"><a class="ln" href="#source-model-4">  4</a> </span>
+<span id="source-model-5"><a class="ln" href="#source-model-5">  5</a> @dataclass(frozen=True)</span>
+<span id="source-model-6"><a class="ln" href="#source-model-6">  6</a> class Parameters:</span>
+<span id="source-model-7"><a class="ln" href="#source-model-7">  7</a>     horizon: float = 25.0</span>
+<span id="source-model-8"><a class="ln" href="#source-model-8">  8</a>     dt: float = 1 / 52</span>
+<span id="source-model-9"><a class="ln" href="#source-model-9">  9</a>     required_engineers: float = 1000</span>
+<span id="source-model-10"><a class="ln" href="#source-model-10"> 10</a>     availability: float = 0.8</span>
+<span id="source-model-11"><a class="ln" href="#source-model-11"> 11</a>     hiring_delay: float = 1.5</span>
+<span id="source-model-12"><a class="ln" href="#source-model-12"> 12</a>     attrition: float = 0.04</span>
+<span id="source-model-13"><a class="ln" href="#source-model-13"> 13</a>     diversion: float = 0.08</span>
+<span id="source-model-14"><a class="ln" href="#source-model-14"> 14</a>     shock_year: float = 3.0</span>
+<span id="source-model-15"><a class="ln" href="#source-model-15"> 15</a>     shock_diversion: float = 0.12</span>
+<span id="source-model-16"><a class="ln" href="#source-model-16"> 16</a>     design_work: float = 6000  # engineer-years</span>
+<span id="source-model-17"><a class="ln" href="#source-model-17"> 17</a>     rework_fraction: float = 0.12</span>
+<span id="source-model-18"><a class="ln" href="#source-model-18"> 18</a>     certification_years: float = 2.0</span>
+<span id="source-model-19"><a class="ln" href="#source-model-19"> 19</a>     capacity_target: float = 60.0  # aircraft/year</span>
+<span id="source-model-20"><a class="ln" href="#source-model-20"> 20</a>     ramp_years: float = 3.0</span>
+<span id="source-model-21"><a class="ln" href="#source-model-21"> 21</a>     market_units: float = 850.0  # aircraft/year, illustrative total market</span>
+<span id="source-model-22"><a class="ln" href="#source-model-22"> 22</a>     market_growth: float = 0.03</span>
+<span id="source-model-23"><a class="ln" href="#source-model-23"> 23</a>     capture_share: float = 0.06</span>
+<span id="source-model-24"><a class="ln" href="#source-model-24"> 24</a>     price: float = 40.0  # constant USD million/aircraft</span>
+<span id="source-model-25"><a class="ln" href="#source-model-25"> 25</a>     unit_cost: float = 32.0</span>
+<span id="source-model-26"><a class="ln" href="#source-model-26"> 26</a>     learning_exponent: float = 0.08</span>
+<span id="source-model-27"><a class="ln" href="#source-model-27"> 27</a>     engineer_cost: float = 0.18  # USD million/FTE/year</span>
+<span id="source-model-28"><a class="ln" href="#source-model-28"> 28</a>     overhead: float = 40.0  # USD million/year</span>
+<span id="source-model-29"><a class="ln" href="#source-model-29"> 29</a>     certification_cost: float = 300.0  # total USD million</span>
+<span id="source-model-30"><a class="ln" href="#source-model-30"> 30</a>     capex: float = 500.0  # time-zero USD million</span>
+<span id="source-model-31"><a class="ln" href="#source-model-31"> 31</a>     protection_cost: float = 25.0  # USD million/year</span>
+<span id="source-model-32"><a class="ln" href="#source-model-32"> 32</a>     discount_rate: float = 0.08</span>
+<span id="source-model-33"><a class="ln" href="#source-model-33"> 33</a> </span>
+<span id="source-model-34"><a class="ln" href="#source-model-34"> 34</a>     def __post_init__(self):</span>
+<span id="source-model-35"><a class="ln" href="#source-model-35"> 35</a>         for k, v in asdict(self).items():</span>
+<span id="source-model-36"><a class="ln" href="#source-model-36"> 36</a>             if not math.isfinite(v) or v &lt; 0:</span>
+<span id="source-model-37"><a class="ln" href="#source-model-37"> 37</a>                 raise ValueError(f&#x27;{k} must be finite and nonnegative&#x27;)</span>
+<span id="source-model-38"><a class="ln" href="#source-model-38"> 38</a>         for k in (&#x27;horizon&#x27;, &#x27;dt&#x27;, &#x27;required_engineers&#x27;, &#x27;hiring_delay&#x27;,</span>
+<span id="source-model-39"><a class="ln" href="#source-model-39"> 39</a>                   &#x27;design_work&#x27;, &#x27;certification_years&#x27;, &#x27;ramp_years&#x27;):</span>
+<span id="source-model-40"><a class="ln" href="#source-model-40"> 40</a>             if getattr(self, k) &lt;= 0:</span>
+<span id="source-model-41"><a class="ln" href="#source-model-41"> 41</a>                 raise ValueError(f&#x27;{k} must be positive&#x27;)</span>
+<span id="source-model-42"><a class="ln" href="#source-model-42"> 42</a>         for k in (&#x27;rework_fraction&#x27;, &#x27;capture_share&#x27;):</span>
+<span id="source-model-43"><a class="ln" href="#source-model-43"> 43</a>             if getattr(self, k) &gt; 1:</span>
+<span id="source-model-44"><a class="ln" href="#source-model-44"> 44</a>                 raise ValueError(f&#x27;{k} must be &lt;= 1&#x27;)</span>
+<span id="source-model-45"><a class="ln" href="#source-model-45"> 45</a>         if self.dt &gt; min(self.hiring_delay, self.ramp_years):</span>
+<span id="source-model-46"><a class="ln" href="#source-model-46"> 46</a>             raise ValueError(&#x27;dt exceeds a smoothing time constant&#x27;)</span>
+<span id="source-model-47"><a class="ln" href="#source-model-47"> 47</a> </span>
+<span id="source-model-48"><a class="ln" href="#source-model-48"> 48</a> </span>
+<span id="source-model-49"><a class="ln" href="#source-model-49"> 49</a> @dataclass(frozen=True)</span>
+<span id="source-model-50"><a class="ln" href="#source-model-50"> 50</a> class Action:</span>
+<span id="source-model-51"><a class="ln" href="#source-model-51"> 51</a>     hire: bool = False</span>
+<span id="source-model-52"><a class="ln" href="#source-model-52"> 52</a>     protect: bool = False</span>
+<span id="source-model-53"><a class="ln" href="#source-model-53"> 53</a>     exit: bool = False</span>
+<span id="source-model-54"><a class="ln" href="#source-model-54"> 54</a> </span>
+<span id="source-model-55"><a class="ln" href="#source-model-55"> 55</a> </span>
+<span id="source-model-56"><a class="ln" href="#source-model-56"> 56</a> @dataclass</span>
+<span id="source-model-57"><a class="ln" href="#source-model-57"> 57</a> class State:</span>
+<span id="source-model-58"><a class="ln" href="#source-model-58"> 58</a>     time: float</span>
+<span id="source-model-59"><a class="ln" href="#source-model-59"> 59</a>     engineers: float</span>
+<span id="source-model-60"><a class="ln" href="#source-model-60"> 60</a>     work: float</span>
+<span id="source-model-61"><a class="ln" href="#source-model-61"> 61</a>     certification: float = 0.0</span>
+<span id="source-model-62"><a class="ln" href="#source-model-62"> 62</a>     capacity: float = 0.0</span>
+<span id="source-model-63"><a class="ln" href="#source-model-63"> 63</a>     backlog: float = 0.0</span>
+<span id="source-model-64"><a class="ln" href="#source-model-64"> 64</a>     delivered: float = 0.0</span>
+<span id="source-model-65"><a class="ln" href="#source-model-65"> 65</a>     cash: float = 0.0</span>
+<span id="source-model-66"><a class="ln" href="#source-model-66"> 66</a>     npv: float = 0.0</span>
+<span id="source-model-67"><a class="ln" href="#source-model-67"> 67</a>     peak_exposure: float = 0.0</span>
+<span id="source-model-68"><a class="ln" href="#source-model-68"> 68</a>     eis: float | None = None</span>
+<span id="source-model-69"><a class="ln" href="#source-model-69"> 69</a>     exited: bool = False</span>
+<span id="source-model-70"><a class="ln" href="#source-model-70"> 70</a> </span>
+<span id="source-model-71"><a class="ln" href="#source-model-71"> 71</a> </span>
+<span id="source-model-72"><a class="ln" href="#source-model-72"> 72</a> class World:</span>
+<span id="source-model-73"><a class="ln" href="#source-model-73"> 73</a>     &quot;&quot;&quot;Beginning-of-step rates, simultaneous Euler stock updates; years and USD million.&quot;&quot;&quot;</span>
+<span id="source-model-74"><a class="ln" href="#source-model-74"> 74</a>     def __init__(self, p: Parameters, shocks=()):</span>
+<span id="source-model-75"><a class="ln" href="#source-model-75"> 75</a>         self.p = p</span>
+<span id="source-model-76"><a class="ln" href="#source-model-76"> 76</a>         self.shocks = tuple(shocks)</span>
+<span id="source-model-77"><a class="ln" href="#source-model-77"> 77</a>         self.s = State(0, p.required_engineers * p.availability, p.design_work,</span>
+<span id="source-model-78"><a class="ln" href="#source-model-78"> 78</a>                        cash=-p.capex, npv=-p.capex, peak_exposure=p.capex)</span>
+<span id="source-model-79"><a class="ln" href="#source-model-79"> 79</a> </span>
+<span id="source-model-80"><a class="ln" href="#source-model-80"> 80</a>     def observe(self):</span>
+<span id="source-model-81"><a class="ln" href="#source-model-81"> 81</a>         # Only contemporaneous indicators: future shocks remain in the world configuration.</span>
+<span id="source-model-82"><a class="ln" href="#source-model-82"> 82</a>         return asdict(self.s).copy()</span>
+<span id="source-model-83"><a class="ln" href="#source-model-83"> 83</a> </span>
+<span id="source-model-84"><a class="ln" href="#source-model-84"> 84</a>     def step(self, a: Action):</span>
+<span id="source-model-85"><a class="ln" href="#source-model-85"> 85</a>         p, s = self.p, self.s</span>
+<span id="source-model-86"><a class="ln" href="#source-model-86"> 86</a>         h = min(p.dt, p.horizon - s.time)</span>
+<span id="source-model-87"><a class="ln" href="#source-model-87"> 87</a>         if h &lt;= 1e-12:</span>
+<span id="source-model-88"><a class="ln" href="#source-model-88"> 88</a>             raise ValueError(&#x27;simulation horizon reached&#x27;)</span>
+<span id="source-model-89"><a class="ln" href="#source-model-89"> 89</a>         if a.exit:</span>
+<span id="source-model-90"><a class="ln" href="#source-model-90"> 90</a>             s.exited = True</span>
+<span id="source-model-91"><a class="ln" href="#source-model-91"> 91</a>         if s.exited:</span>
+<span id="source-model-92"><a class="ln" href="#source-model-92"> 92</a>             s.time += h</span>
+<span id="source-model-93"><a class="ln" href="#source-model-93"> 93</a>             return dict(**asdict(s), orders=0.0, deliveries=0.0, cashflow=0.0,</span>
+<span id="source-model-94"><a class="ln" href="#source-model-94"> 94</a>                         hires=0.0, losses=0.0, completed_work=0.0, rework=0.0)</span>
+<span id="source-model-95"><a class="ln" href="#source-model-95"> 95</a>         diversion = p.diversion + (p.shock_diversion if s.time &gt;= p.shock_year else 0)</span>
+<span id="source-model-96"><a class="ln" href="#source-model-96"> 96</a>         market_factor = productivity = supply = 1.0</span>
+<span id="source-model-97"><a class="ln" href="#source-model-97"> 97</a>         for shock in self.shocks:</span>
+<span id="source-model-98"><a class="ln" href="#source-model-98"> 98</a>             if shock[&#x27;start&#x27;] &lt;= s.time &lt; shock[&#x27;start&#x27;] + shock[&#x27;duration&#x27;]:</span>
+<span id="source-model-99"><a class="ln" href="#source-model-99"> 99</a>                 kind, magnitude = shock[&#x27;kind&#x27;], shock[&#x27;magnitude&#x27;]</span>
+<span id="source-model-100"><a class="ln" href="#source-model-100">100</a>                 if kind == &#x27;diversion&#x27;:</span>
+<span id="source-model-101"><a class="ln" href="#source-model-101">101</a>                     diversion += magnitude</span>
+<span id="source-model-102"><a class="ln" href="#source-model-102">102</a>                 elif kind == &#x27;demand&#x27;:</span>
+<span id="source-model-103"><a class="ln" href="#source-model-103">103</a>                     market_factor *= 1 - magnitude</span>
+<span id="source-model-104"><a class="ln" href="#source-model-104">104</a>                 elif kind == &#x27;productivity&#x27;:</span>
+<span id="source-model-105"><a class="ln" href="#source-model-105">105</a>                     productivity *= 1 - magnitude</span>
+<span id="source-model-106"><a class="ln" href="#source-model-106">106</a>                 elif kind == &#x27;supply&#x27;:</span>
+<span id="source-model-107"><a class="ln" href="#source-model-107">107</a>                     supply *= 1 - magnitude</span>
+<span id="source-model-108"><a class="ln" href="#source-model-108">108</a>         if a.protect:</span>
+<span id="source-model-109"><a class="ln" href="#source-model-109">109</a>             diversion *= 0.2</span>
+<span id="source-model-110"><a class="ln" href="#source-model-110">110</a>         losses = min(s.engineers / h, s.engineers * (p.attrition + diversion))</span>
+<span id="source-model-111"><a class="ln" href="#source-model-111">111</a>         hires = (max(0, p.required_engineers - s.engineers) / p.hiring_delay</span>
+<span id="source-model-112"><a class="ln" href="#source-model-112">112</a>                  + losses) if a.hire else 0.0</span>
+<span id="source-model-113"><a class="ln" href="#source-model-113">113</a>         pressure = max(0, 1 - s.engineers / p.required_engineers)</span>
+<span id="source-model-114"><a class="ln" href="#source-model-114">114</a>         # Rework is added to remaining work, giving a balancing progress loop.</span>
+<span id="source-model-115"><a class="ln" href="#source-model-115">115</a>         completed = min(s.work / h, s.engineers * productivity) if s.work &gt; 1e-9 else 0.0</span>
+<span id="source-model-116"><a class="ln" href="#source-model-116">116</a>         rework = completed * p.rework_fraction * min(1, pressure)</span>
+<span id="source-model-117"><a class="ln" href="#source-model-117">117</a>         work = max(0.0, s.work + (rework - completed) * h)</span>
+<span id="source-model-118"><a class="ln" href="#source-model-118">118</a>         if work &lt; 1e-9:</span>
+<span id="source-model-119"><a class="ln" href="#source-model-119">119</a>             work = 0.0</span>
+<span id="source-model-120"><a class="ln" href="#source-model-120">120</a>         cert_rate = (productivity * min(1, s.engineers / p.required_engineers) / p.certification_years</span>
+<span id="source-model-121"><a class="ln" href="#source-model-121">121</a>                      if s.work == 0 and s.certification &lt; 1 else 0)</span>
+<span id="source-model-122"><a class="ln" href="#source-model-122">122</a>         cert_delta = min(1 - s.certification, cert_rate * h)</span>
+<span id="source-model-123"><a class="ln" href="#source-model-123">123</a>         active = s.certification &gt;= 1</span>
+<span id="source-model-124"><a class="ln" href="#source-model-124">124</a>         capacity = s.capacity + ((p.capacity_target - s.capacity) / p.ramp_years * h</span>
+<span id="source-model-125"><a class="ln" href="#source-model-125">125</a>                                  if active else 0)</span>
+<span id="source-model-126"><a class="ln" href="#source-model-126">126</a>         orders = market_factor * p.market_units * (1 + p.market_growth) ** s.time * p.capture_share if active else 0</span>
+<span id="source-model-127"><a class="ln" href="#source-model-127">127</a>         deliveries = min(s.capacity * supply, s.backlog / h) if active else 0</span>
+<span id="source-model-128"><a class="ln" href="#source-model-128">128</a>         cost_per_unit = p.unit_cost * max(1, s.delivered / 10) ** (-p.learning_exponent)</span>
+<span id="source-model-129"><a class="ln" href="#source-model-129">129</a>         cost_per_unit = max(0.6 * p.unit_cost, cost_per_unit)</span>
+<span id="source-model-130"><a class="ln" href="#source-model-130">130</a>         revenue = p.price * deliveries</span>
+<span id="source-model-131"><a class="ln" href="#source-model-131">131</a>         spending = (cost_per_unit * deliveries + p.engineer_cost * s.engineers</span>
+<span id="source-model-132"><a class="ln" href="#source-model-132">132</a>                     + p.overhead + p.certification_cost * cert_delta / h</span>
+<span id="source-model-133"><a class="ln" href="#source-model-133">133</a>                     + (p.protection_cost if a.protect else 0))</span>
+<span id="source-model-134"><a class="ln" href="#source-model-134">134</a>         flow = ((p.price - cost_per_unit) * deliveries - p.engineer_cost * s.engineers</span>
+<span id="source-model-135"><a class="ln" href="#source-model-135">135</a>                 - p.overhead - p.certification_cost * cert_delta / h</span>
+<span id="source-model-136"><a class="ln" href="#source-model-136">136</a>                 - (p.protection_cost if a.protect else 0))</span>
+<span id="source-model-137"><a class="ln" href="#source-model-137">137</a>         s.engineers += (hires - losses) * h</span>
+<span id="source-model-138"><a class="ln" href="#source-model-138">138</a>         s.work = work</span>
+<span id="source-model-139"><a class="ln" href="#source-model-139">139</a>         s.certification += cert_delta</span>
+<span id="source-model-140"><a class="ln" href="#source-model-140">140</a>         capacity_change = (capacity - s.capacity) / h</span>
+<span id="source-model-141"><a class="ln" href="#source-model-141">141</a>         s.capacity = capacity</span>
+<span id="source-model-142"><a class="ln" href="#source-model-142">142</a>         s.backlog += (orders - deliveries) * h</span>
+<span id="source-model-143"><a class="ln" href="#source-model-143">143</a>         s.delivered += deliveries * h</span>
+<span id="source-model-144"><a class="ln" href="#source-model-144">144</a>         s.cash += flow * h</span>
+<span id="source-model-145"><a class="ln" href="#source-model-145">145</a>         s.npv += flow * h / (1 + p.discount_rate) ** (s.time + h)</span>
+<span id="source-model-146"><a class="ln" href="#source-model-146">146</a>         s.peak_exposure = max(s.peak_exposure, -s.cash)</span>
+<span id="source-model-147"><a class="ln" href="#source-model-147">147</a>         s.time += h</span>
+<span id="source-model-148"><a class="ln" href="#source-model-148">148</a>         if s.certification &gt;= 1 and s.eis is None:</span>
+<span id="source-model-149"><a class="ln" href="#source-model-149">149</a>             s.eis = s.time</span>
+<span id="source-model-150"><a class="ln" href="#source-model-150">150</a>         return dict(**asdict(s), orders=orders, deliveries=deliveries, cashflow=flow,</span>
+<span id="source-model-151"><a class="ln" href="#source-model-151">151</a>                     hires=hires, losses=losses, completed_work=completed, rework=rework,</span>
+<span id="source-model-152"><a class="ln" href="#source-model-152">152</a>                     revenue=revenue, spending=spending, certification_rate=cert_delta/h,</span>
+<span id="source-model-153"><a class="ln" href="#source-model-153">153</a>                     capacity_change=capacity_change)</span>
+<span id="source-model-154"><a class="ln" href="#source-model-154">154</a> </span>
+<span id="source-model-155"><a class="ln" href="#source-model-155">155</a> </span>
+<span id="source-model-156"><a class="ln" href="#source-model-156">156</a> def simulate(p: Parameters, policy):</span>
+<span id="source-model-157"><a class="ln" href="#source-model-157">157</a>     world = World(p)</span>
+<span id="source-model-158"><a class="ln" href="#source-model-158">158</a>     rows = []</span>
+<span id="source-model-159"><a class="ln" href="#source-model-159">159</a>     while world.s.time &lt; p.horizon - 1e-10:</span>
+<span id="source-model-160"><a class="ln" href="#source-model-160">160</a>         rows.append(world.step(policy(world.observe())))</span>
+<span id="source-model-161"><a class="ln" href="#source-model-161">161</a>     return rows</span></code></pre></section>
+<section class="guide-section source" id="source-experiment"><h2>experiment.py — source browser</h2><pre><code><span id="source-experiment-1"><a class="ln" href="#source-experiment-1">  1</a> &quot;&quot;&quot;Seeded space-filling futures and stock-based adaptive pathway experiments.&quot;&quot;&quot;</span>
+<span id="source-experiment-2"><a class="ln" href="#source-experiment-2">  2</a> from dataclasses import asdict</span>
+<span id="source-experiment-3"><a class="ln" href="#source-experiment-3">  3</a> from copy import deepcopy</span>
+<span id="source-experiment-4"><a class="ln" href="#source-experiment-4">  4</a> import math</span>
+<span id="source-experiment-5"><a class="ln" href="#source-experiment-5">  5</a> import random</span>
+<span id="source-experiment-6"><a class="ln" href="#source-experiment-6">  6</a> from .model import Parameters, World, Action</span>
+<span id="source-experiment-7"><a class="ln" href="#source-experiment-7">  7</a> </span>
+<span id="source-experiment-8"><a class="ln" href="#source-experiment-8">  8</a> </span>
+<span id="source-experiment-9"><a class="ln" href="#source-experiment-9">  9</a> def finite(value, lo, hi, name):</span>
+<span id="source-experiment-10"><a class="ln" href="#source-experiment-10"> 10</a>     value = float(value)</span>
+<span id="source-experiment-11"><a class="ln" href="#source-experiment-11"> 11</a>     if not math.isfinite(value) or not lo &lt;= value &lt;= hi:</span>
+<span id="source-experiment-12"><a class="ln" href="#source-experiment-12"> 12</a>         raise ValueError(f&#x27;{name}: expected {lo} to {hi}&#x27;)</span>
+<span id="source-experiment-13"><a class="ln" href="#source-experiment-13"> 13</a>     return value</span>
+<span id="source-experiment-14"><a class="ln" href="#source-experiment-14"> 14</a> </span>
+<span id="source-experiment-15"><a class="ln" href="#source-experiment-15"> 15</a> </span>
+<span id="source-experiment-16"><a class="ln" href="#source-experiment-16"> 16</a> def continuation(world, action):</span>
+<span id="source-experiment-17"><a class="ln" href="#source-experiment-17"> 17</a>     branch = deepcopy(world)</span>
+<span id="source-experiment-18"><a class="ln" href="#source-experiment-18"> 18</a>     rows = [branch.observe()]</span>
+<span id="source-experiment-19"><a class="ln" href="#source-experiment-19"> 19</a>     revenue = spending = 0.0</span>
+<span id="source-experiment-20"><a class="ln" href="#source-experiment-20"> 20</a>     while branch.s.time &lt; branch.p.horizon-1e-10:</span>
+<span id="source-experiment-21"><a class="ln" href="#source-experiment-21"> 21</a>         previous_time = branch.s.time</span>
+<span id="source-experiment-22"><a class="ln" href="#source-experiment-22"> 22</a>         row = branch.step(action)</span>
+<span id="source-experiment-23"><a class="ln" href="#source-experiment-23"> 23</a>         h = row[&#x27;time&#x27;]-previous_time</span>
+<span id="source-experiment-24"><a class="ln" href="#source-experiment-24"> 24</a>         revenue += row.get(&#x27;revenue&#x27;,0)*h</span>
+<span id="source-experiment-25"><a class="ln" href="#source-experiment-25"> 25</a>         spending += row.get(&#x27;spending&#x27;,0)*h</span>
+<span id="source-experiment-26"><a class="ln" href="#source-experiment-26"> 26</a>         rows.append(row)</span>
+<span id="source-experiment-27"><a class="ln" href="#source-experiment-27"> 27</a>     return dict(rows=rows, revenue=revenue, spending=spending, action=asdict(action))</span>
+<span id="source-experiment-28"><a class="ln" href="#source-experiment-28"> 28</a> </span>
+<span id="source-experiment-29"><a class="ln" href="#source-experiment-29"> 29</a> </span>
+<span id="source-experiment-30"><a class="ln" href="#source-experiment-30"> 30</a> def experiment(request):</span>
+<span id="source-experiment-31"><a class="ln" href="#source-experiment-31"> 31</a>     inputs = request.get(&#x27;parameters&#x27;, {})</span>
+<span id="source-experiment-32"><a class="ln" href="#source-experiment-32"> 32</a>     p = Parameters(**inputs)</span>
+<span id="source-experiment-33"><a class="ln" href="#source-experiment-33"> 33</a>     if not 1 &lt;= p.horizon &lt;= 50 or not 1/104 &lt;= p.dt &lt;= .25:</span>
+<span id="source-experiment-34"><a class="ln" href="#source-experiment-34"> 34</a>         raise ValueError(&#x27;Horizon must be 1–50 years and dt 1/104–0.25 years&#x27;)</span>
+<span id="source-experiment-35"><a class="ln" href="#source-experiment-35"> 35</a>     n = int(finite(request.get(&#x27;samples&#x27;, 8), 1, 40, &#x27;samples&#x27;))</span>
+<span id="source-experiment-36"><a class="ln" href="#source-experiment-36"> 36</a>     rng = random.Random(int(request.get(&#x27;seed&#x27;, 42)))</span>
+<span id="source-experiment-37"><a class="ln" href="#source-experiment-37"> 37</a>     jitter = finite(request.get(&#x27;shock_jitter&#x27;,0),0,10,&#x27;shock jitter&#x27;)</span>
+<span id="source-experiment-38"><a class="ln" href="#source-experiment-38"> 38</a>     ranges = request.get(&#x27;ranges&#x27;, {})</span>
+<span id="source-experiment-39"><a class="ln" href="#source-experiment-39"> 39</a>     columns = {}</span>
+<span id="source-experiment-40"><a class="ln" href="#source-experiment-40"> 40</a>     for key, bounds in ranges.items():</span>
+<span id="source-experiment-41"><a class="ln" href="#source-experiment-41"> 41</a>         if key not in (&#x27;availability&#x27;, &#x27;market_growth&#x27;, &#x27;hiring_delay&#x27;, &#x27;certification_years&#x27;):</span>
+<span id="source-experiment-42"><a class="ln" href="#source-experiment-42"> 42</a>             raise ValueError(&#x27;Unsupported DOE parameter: &#x27; + key)</span>
+<span id="source-experiment-43"><a class="ln" href="#source-experiment-43"> 43</a>         low, high = map(float, bounds)</span>
+<span id="source-experiment-44"><a class="ln" href="#source-experiment-44"> 44</a>         if not math.isfinite(low+high) or low &gt; high:</span>
+<span id="source-experiment-45"><a class="ln" href="#source-experiment-45"> 45</a>             raise ValueError(&#x27;Invalid range for &#x27; + key)</span>
+<span id="source-experiment-46"><a class="ln" href="#source-experiment-46"> 46</a>         values = [low+(high-low)*(i+rng.random())/n for i in range(n)]</span>
+<span id="source-experiment-47"><a class="ln" href="#source-experiment-47"> 47</a>         rng.shuffle(values)</span>
+<span id="source-experiment-48"><a class="ln" href="#source-experiment-48"> 48</a>         columns[key] = values</span>
+<span id="source-experiment-49"><a class="ln" href="#source-experiment-49"> 49</a>     shocks = request.get(&#x27;shocks&#x27;, [])</span>
+<span id="source-experiment-50"><a class="ln" href="#source-experiment-50"> 50</a>     if len(shocks) &gt; 12:</span>
+<span id="source-experiment-51"><a class="ln" href="#source-experiment-51"> 51</a>         raise ValueError(&#x27;At most twelve shocks&#x27;)</span>
+<span id="source-experiment-52"><a class="ln" href="#source-experiment-52"> 52</a>     shock_columns = []</span>
+<span id="source-experiment-53"><a class="ln" href="#source-experiment-53"> 53</a>     for s in shocks:</span>
+<span id="source-experiment-54"><a class="ln" href="#source-experiment-54"> 54</a>         if s[&#x27;kind&#x27;] not in (&#x27;diversion&#x27;, &#x27;demand&#x27;, &#x27;productivity&#x27;, &#x27;supply&#x27;):</span>
+<span id="source-experiment-55"><a class="ln" href="#source-experiment-55"> 55</a>             raise ValueError(&#x27;Unknown shock kind&#x27;)</span>
+<span id="source-experiment-56"><a class="ln" href="#source-experiment-56"> 56</a>         sampled = {}</span>
+<span id="source-experiment-57"><a class="ln" href="#source-experiment-57"> 57</a>         for key, lo, hi in [(&#x27;start&#x27;,0,p.horizon), (&#x27;duration&#x27;,.01,50), (&#x27;magnitude&#x27;,0,1)]:</span>
+<span id="source-experiment-58"><a class="ln" href="#source-experiment-58"> 58</a>             bounds = s.get(key+&#x27;_range&#x27;, [s.get(key), s.get(key)])</span>
+<span id="source-experiment-59"><a class="ln" href="#source-experiment-59"> 59</a>             if not isinstance(bounds, (list, tuple)) or len(bounds) != 2:</span>
+<span id="source-experiment-60"><a class="ln" href="#source-experiment-60"> 60</a>                 raise ValueError(&#x27;Expected min/max for shock &#x27;+key)</span>
+<span id="source-experiment-61"><a class="ln" href="#source-experiment-61"> 61</a>             low, high = [finite(v,lo,hi,&#x27;shock &#x27;+key) for v in bounds]</span>
+<span id="source-experiment-62"><a class="ln" href="#source-experiment-62"> 62</a>             if low &gt; high:</span>
+<span id="source-experiment-63"><a class="ln" href="#source-experiment-63"> 63</a>                 raise ValueError(&#x27;Shock minimum exceeds maximum: &#x27;+key)</span>
+<span id="source-experiment-64"><a class="ln" href="#source-experiment-64"> 64</a>             values = [low+(high-low)*(j+rng.random())/n for j in range(n)]</span>
+<span id="source-experiment-65"><a class="ln" href="#source-experiment-65"> 65</a>             rng.shuffle(values)</span>
+<span id="source-experiment-66"><a class="ln" href="#source-experiment-66"> 66</a>             sampled[key] = values</span>
+<span id="source-experiment-67"><a class="ln" href="#source-experiment-67"> 67</a>         shock_columns.append(sampled)</span>
+<span id="source-experiment-68"><a class="ln" href="#source-experiment-68"> 68</a>     cfg = request.get(&#x27;adaptive&#x27;, {})</span>
+<span id="source-experiment-69"><a class="ln" href="#source-experiment-69"> 69</a>     hire_at = finite(cfg.get(&#x27;hire_at&#x27;, .85), .1, 1.5, &#x27;hire threshold&#x27;)</span>
+<span id="source-experiment-70"><a class="ln" href="#source-experiment-70"> 70</a>     protect_at = finite(cfg.get(&#x27;protect_at&#x27;, .7), .1, hire_at, &#x27;protection threshold&#x27;)</span>
+<span id="source-experiment-71"><a class="ln" href="#source-experiment-71"> 71</a>     cash_limit = finite(cfg.get(&#x27;cash_limit&#x27;, 4000), 1, 1e6, &#x27;cash limit&#x27;)</span>
+<span id="source-experiment-72"><a class="ln" href="#source-experiment-72"> 72</a>     review = finite(cfg.get(&#x27;review&#x27;, .25), p.dt, 5, &#x27;review interval&#x27;)</span>
+<span id="source-experiment-73"><a class="ln" href="#source-experiment-73"> 73</a>     latency = finite(cfg.get(&#x27;latency&#x27;, .1), 0, 5, &#x27;latency&#x27;)</span>
+<span id="source-experiment-74"><a class="ln" href="#source-experiment-74"> 74</a>     result = []</span>
+<span id="source-experiment-75"><a class="ln" href="#source-experiment-75"> 75</a>     for i in range(n):</span>
+<span id="source-experiment-76"><a class="ln" href="#source-experiment-76"> 76</a>         params = asdict(p)</span>
+<span id="source-experiment-77"><a class="ln" href="#source-experiment-77"> 77</a>         params.update({k:v[i] for k,v in columns.items()})</span>
+<span id="source-experiment-78"><a class="ln" href="#source-experiment-78"> 78</a>         future = Parameters(**params)</span>
+<span id="source-experiment-79"><a class="ln" href="#source-experiment-79"> 79</a>         # Jitter each event separately. The identical realization is reused across policies.</span>
+<span id="source-experiment-80"><a class="ln" href="#source-experiment-80"> 80</a>         events = [dict(kind=s[&#x27;kind&#x27;], start=max(0,min(p.horizon,col[&#x27;start&#x27;][i]+rng.uniform(-1,1)*jitter)),</span>
+<span id="source-experiment-81"><a class="ln" href="#source-experiment-81"> 81</a>                        duration=col[&#x27;duration&#x27;][i], magnitude=col[&#x27;magnitude&#x27;][i])</span>
+<span id="source-experiment-82"><a class="ln" href="#source-experiment-82"> 82</a>                   for s,col in zip(shocks,shock_columns)]</span>
+<span id="source-experiment-83"><a class="ln" href="#source-experiment-83"> 83</a>         for policy in (&#x27;baseline&#x27;,&#x27;hire&#x27;,&#x27;protect_hire&#x27;,&#x27;adaptive&#x27;):</span>
+<span id="source-experiment-84"><a class="ln" href="#source-experiment-84"> 84</a>             world = World(future, events)</span>
+<span id="source-experiment-85"><a class="ln" href="#source-experiment-85"> 85</a>             rows = [world.observe()]</span>
+<span id="source-experiment-86"><a class="ln" href="#source-experiment-86"> 86</a>             logs, pending, counterfactuals = [], None, []</span>
+<span id="source-experiment-87"><a class="ln" href="#source-experiment-87"> 87</a>             action = Action()</span>
+<span id="source-experiment-88"><a class="ln" href="#source-experiment-88"> 88</a>             next_review = 0</span>
+<span id="source-experiment-89"><a class="ln" href="#source-experiment-89"> 89</a>             while world.s.time &lt; p.horizon-1e-10:</span>
+<span id="source-experiment-90"><a class="ln" href="#source-experiment-90"> 90</a>                 o = world.observe()</span>
+<span id="source-experiment-91"><a class="ln" href="#source-experiment-91"> 91</a>                 if policy == &#x27;adaptive&#x27;:</span>
+<span id="source-experiment-92"><a class="ln" href="#source-experiment-92"> 92</a>                     if pending and o[&#x27;time&#x27;] &gt;= pending[0]-1e-9:</span>
+<span id="source-experiment-93"><a class="ln" href="#source-experiment-93"> 93</a>                         if request.get(&#x27;include_counterfactuals&#x27;, True):</span>
+<span id="source-experiment-94"><a class="ln" href="#source-experiment-94"> 94</a>                             counterfactuals.append(dict(decision_id=pending[2], time=o[&#x27;time&#x27;],</span>
+<span id="source-experiment-95"><a class="ln" href="#source-experiment-95"> 95</a>                                 reasons=pending[3], previous_action=asdict(action), new_action=asdict(pending[1]),</span>
+<span id="source-experiment-96"><a class="ln" href="#source-experiment-96"> 96</a>                                 keep=continuation(world, action), change=continuation(world, pending[1])))</span>
+<span id="source-experiment-97"><a class="ln" href="#source-experiment-97"> 97</a>                         action = pending[1]</span>
+<span id="source-experiment-98"><a class="ln" href="#source-experiment-98"> 98</a>                         logs.append(dict(time=o[&#x27;time&#x27;], event=&#x27;implemented&#x27;, action=asdict(action),</span>
+<span id="source-experiment-99"><a class="ln" href="#source-experiment-99"> 99</a>                                          decision_id=pending[2], reasons=pending[3]))</span>
+<span id="source-experiment-100"><a class="ln" href="#source-experiment-100">100</a>                         pending = None</span>
+<span id="source-experiment-101"><a class="ln" href="#source-experiment-101">101</a>                     if o[&#x27;time&#x27;] &gt;= next_review-1e-9 and not o[&#x27;exited&#x27;]:</span>
+<span id="source-experiment-102"><a class="ln" href="#source-experiment-102">102</a>                         next_review = o[&#x27;time&#x27;]+review</span>
+<span id="source-experiment-103"><a class="ln" href="#source-experiment-103">103</a>                         ratio = o[&#x27;engineers&#x27;]/future.required_engineers</span>
+<span id="source-experiment-104"><a class="ln" href="#source-experiment-104">104</a>                         # Escalation is irreversible in this initial pathway design.</span>
+<span id="source-experiment-105"><a class="ln" href="#source-experiment-105">105</a>                         desired = Action(action.hire or ratio &lt; hire_at,</span>
+<span id="source-experiment-106"><a class="ln" href="#source-experiment-106">106</a>                                          action.protect or ratio &lt; protect_at,</span>
+<span id="source-experiment-107"><a class="ln" href="#source-experiment-107">107</a>                                          o[&#x27;peak_exposure&#x27;] &gt;= cash_limit)</span>
+<span id="source-experiment-108"><a class="ln" href="#source-experiment-108">108</a>                         if desired != action and pending is None:</span>
+<span id="source-experiment-109"><a class="ln" href="#source-experiment-109">109</a>                             reasons = []</span>
+<span id="source-experiment-110"><a class="ln" href="#source-experiment-110">110</a>                             if desired.hire and not action.hire:</span>
+<span id="source-experiment-111"><a class="ln" href="#source-experiment-111">111</a>                                 reasons.append(f&#x27;Staffing ratio {ratio:.3f} &lt; hire threshold {hire_at:.3f}&#x27;)</span>
+<span id="source-experiment-112"><a class="ln" href="#source-experiment-112">112</a>                             if desired.protect and not action.protect:</span>
+<span id="source-experiment-113"><a class="ln" href="#source-experiment-113">113</a>                                 reasons.append(f&#x27;Staffing ratio {ratio:.3f} &lt; protection threshold {protect_at:.3f}&#x27;)</span>
+<span id="source-experiment-114"><a class="ln" href="#source-experiment-114">114</a>                             if desired.exit:</span>
+<span id="source-experiment-115"><a class="ln" href="#source-experiment-115">115</a>                                 reasons.append(f&#x27;Peak exposure {o[&quot;peak_exposure&quot;]:.1f} &gt;= limit {cash_limit:.1f} USD million&#x27;)</span>
+<span id="source-experiment-116"><a class="ln" href="#source-experiment-116">116</a>                             decision_id = 1 + sum(d[&#x27;event&#x27;]==&#x27;triggered&#x27; for d in logs)</span>
+<span id="source-experiment-117"><a class="ln" href="#source-experiment-117">117</a>                             pending = (o[&#x27;time&#x27;]+latency, desired, decision_id, reasons)</span>
+<span id="source-experiment-118"><a class="ln" href="#source-experiment-118">118</a>                             logs.append(dict(time=o[&#x27;time&#x27;], event=&#x27;triggered&#x27;, staffing_ratio=ratio,</span>
+<span id="source-experiment-119"><a class="ln" href="#source-experiment-119">119</a>                                              exposure=o[&#x27;peak_exposure&#x27;], action=asdict(desired),</span>
+<span id="source-experiment-120"><a class="ln" href="#source-experiment-120">120</a>                                              decision_id=decision_id, reasons=reasons,</span>
+<span id="source-experiment-121"><a class="ln" href="#source-experiment-121">121</a>                                              scheduled_implementation=o[&#x27;time&#x27;]+latency))</span>
+<span id="source-experiment-122"><a class="ln" href="#source-experiment-122">122</a>                 else:</span>
+<span id="source-experiment-123"><a class="ln" href="#source-experiment-123">123</a>                     action = Action(hire=policy!=&#x27;baseline&#x27;,protect=policy==&#x27;protect_hire&#x27;)</span>
+<span id="source-experiment-124"><a class="ln" href="#source-experiment-124">124</a>                 rows.append(world.step(action))</span>
+<span id="source-experiment-125"><a class="ln" href="#source-experiment-125">125</a>             last=rows[-1]</span>
+<span id="source-experiment-126"><a class="ln" href="#source-experiment-126">126</a>             result.append(dict(run=f&#x27;future_{i+1}_{policy}&#x27;,future=i+1,policy=policy,</span>
+<span id="source-experiment-127"><a class="ln" href="#source-experiment-127">127</a>                                parameters=params,shocks=events,decisions=logs,rows=rows,</span>
+<span id="source-experiment-128"><a class="ln" href="#source-experiment-128">128</a>                                counterfactuals=counterfactuals,</span>
+<span id="source-experiment-129"><a class="ln" href="#source-experiment-129">129</a>                                summary={k:last[k] for k in (&#x27;eis&#x27;,&#x27;npv&#x27;,&#x27;peak_exposure&#x27;,&#x27;delivered&#x27;,&#x27;exited&#x27;)}))</span>
+<span id="source-experiment-130"><a class="ln" href="#source-experiment-130">130</a>     return dict(runs=result,seed=request.get(&#x27;seed&#x27;,42),request=request,</span>
+<span id="source-experiment-131"><a class="ln" href="#source-experiment-131">131</a>                 note=&#x27;Latin hypercube ranges are exploratory, not probability estimates. Adaptive rules are candidate pathways, not optimized DAPP.&#x27;)</span>
+<span id="source-experiment-132"><a class="ln" href="#source-experiment-132">132</a> </span>
+<span id="source-experiment-133"><a class="ln" href="#source-experiment-133">133</a> </span>
+<span id="source-experiment-134"><a class="ln" href="#source-experiment-134">134</a> def robustness(request):</span>
+<span id="source-experiment-135"><a class="ln" href="#source-experiment-135">135</a>     &quot;&quot;&quot;Re-evaluate exposure triggers over identical seeded futures; return adaptive summaries.&quot;&quot;&quot;</span>
+<span id="source-experiment-136"><a class="ln" href="#source-experiment-136">136</a>     original = request[&#x27;experiment&#x27;]</span>
+<span id="source-experiment-137"><a class="ln" href="#source-experiment-137">137</a>     thresholds = request.get(&#x27;thresholds&#x27;, [])</span>
+<span id="source-experiment-138"><a class="ln" href="#source-experiment-138">138</a>     if not 1 &lt;= len(thresholds) &lt;= 9:</span>
+<span id="source-experiment-139"><a class="ln" href="#source-experiment-139">139</a>         raise ValueError(&#x27;Choose one to nine exposure thresholds&#x27;)</span>
+<span id="source-experiment-140"><a class="ln" href="#source-experiment-140">140</a>     rows = []</span>
+<span id="source-experiment-141"><a class="ln" href="#source-experiment-141">141</a>     for value in thresholds:</span>
+<span id="source-experiment-142"><a class="ln" href="#source-experiment-142">142</a>         limit = finite(value, 1, 1e6, &#x27;exposure threshold&#x27;)</span>
+<span id="source-experiment-143"><a class="ln" href="#source-experiment-143">143</a>         config = deepcopy(original)</span>
+<span id="source-experiment-144"><a class="ln" href="#source-experiment-144">144</a>         config[&#x27;include_counterfactuals&#x27;] = False</span>
+<span id="source-experiment-145"><a class="ln" href="#source-experiment-145">145</a>         config.setdefault(&#x27;adaptive&#x27;, {})[&#x27;cash_limit&#x27;] = limit</span>
+<span id="source-experiment-146"><a class="ln" href="#source-experiment-146">146</a>         result = experiment(config)</span>
+<span id="source-experiment-147"><a class="ln" href="#source-experiment-147">147</a>         rows.append(dict(threshold=limit, futures=[dict(future=r[&#x27;future&#x27;], **r[&#x27;summary&#x27;])</span>
+<span id="source-experiment-148"><a class="ln" href="#source-experiment-148">148</a>                                                   for r in result[&#x27;runs&#x27;] if r[&#x27;policy&#x27;]==&#x27;adaptive&#x27;]))</span>
+<span id="source-experiment-149"><a class="ln" href="#source-experiment-149">149</a>     return dict(rows=rows, note=&#x27;Identical seeded futures at each threshold. Counts are design-space coverage, not probabilities.&#x27;)</span></code></pre></section>
+<section class="guide-section source" id="source-server"><h2>server.py — source browser</h2><pre><code><span id="source-server-1"><a class="ln" href="#source-server-1">  1</a> &quot;&quot;&quot;Local-only UI and simulation endpoint. Run python -m vgc_sd.server.&quot;&quot;&quot;</span>
+<span id="source-server-2"><a class="ln" href="#source-server-2">  2</a> from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer</span>
+<span id="source-server-3"><a class="ln" href="#source-server-3">  3</a> from pathlib import Path</span>
+<span id="source-server-4"><a class="ln" href="#source-server-4">  4</a> import argparse</span>
+<span id="source-server-5"><a class="ln" href="#source-server-5">  5</a> import json</span>
+<span id="source-server-6"><a class="ln" href="#source-server-6">  6</a> import webbrowser</span>
+<span id="source-server-7"><a class="ln" href="#source-server-7">  7</a> from .experiment import experiment, robustness</span>
+<span id="source-server-8"><a class="ln" href="#source-server-8">  8</a> </span>
+<span id="source-server-9"><a class="ln" href="#source-server-9">  9</a> </span>
+<span id="source-server-10"><a class="ln" href="#source-server-10"> 10</a> class Handler(BaseHTTPRequestHandler):</span>
+<span id="source-server-11"><a class="ln" href="#source-server-11"> 11</a>     def send_json(self, value, status=200):</span>
+<span id="source-server-12"><a class="ln" href="#source-server-12"> 12</a>         data=json.dumps(value,allow_nan=False).encode()</span>
+<span id="source-server-13"><a class="ln" href="#source-server-13"> 13</a>         self.send_response(status)</span>
+<span id="source-server-14"><a class="ln" href="#source-server-14"> 14</a>         self.send_header(&#x27;Content-Type&#x27;,&#x27;application/json&#x27;)</span>
+<span id="source-server-15"><a class="ln" href="#source-server-15"> 15</a>         self.send_header(&#x27;Cache-Control&#x27;,&#x27;no-store&#x27;)</span>
+<span id="source-server-16"><a class="ln" href="#source-server-16"> 16</a>         self.end_headers()</span>
+<span id="source-server-17"><a class="ln" href="#source-server-17"> 17</a>         self.wfile.write(data)</span>
+<span id="source-server-18"><a class="ln" href="#source-server-18"> 18</a> </span>
+<span id="source-server-19"><a class="ln" href="#source-server-19"> 19</a>     def do_GET(self):</span>
+<span id="source-server-20"><a class="ln" href="#source-server-20"> 20</a>         if self.path == &#x27;/health&#x27;:</span>
+<span id="source-server-21"><a class="ln" href="#source-server-21"> 21</a>             self.send_json(dict(api_version=2, endpoints=[&#x27;/run&#x27;,&#x27;/robustness&#x27;]))</span>
+<span id="source-server-22"><a class="ln" href="#source-server-22"> 22</a>             return</span>
+<span id="source-server-23"><a class="ln" href="#source-server-23"> 23</a>         if self.path not in (&#x27;/&#x27;, &#x27;/app.html&#x27;):</span>
+<span id="source-server-24"><a class="ln" href="#source-server-24"> 24</a>             self.send_error(404)</span>
+<span id="source-server-25"><a class="ln" href="#source-server-25"> 25</a>             return</span>
+<span id="source-server-26"><a class="ln" href="#source-server-26"> 26</a>         data=Path(__file__).with_name(&#x27;app.html&#x27;).read_bytes()</span>
+<span id="source-server-27"><a class="ln" href="#source-server-27"> 27</a>         self.send_response(200)</span>
+<span id="source-server-28"><a class="ln" href="#source-server-28"> 28</a>         self.send_header(&#x27;Content-Type&#x27;,&#x27;text/html; charset=utf-8&#x27;)</span>
+<span id="source-server-29"><a class="ln" href="#source-server-29"> 29</a>         self.send_header(&#x27;Cache-Control&#x27;,&#x27;no-store&#x27;)</span>
+<span id="source-server-30"><a class="ln" href="#source-server-30"> 30</a>         self.end_headers()</span>
+<span id="source-server-31"><a class="ln" href="#source-server-31"> 31</a>         self.wfile.write(data)</span>
+<span id="source-server-32"><a class="ln" href="#source-server-32"> 32</a> </span>
+<span id="source-server-33"><a class="ln" href="#source-server-33"> 33</a>     def do_POST(self):</span>
+<span id="source-server-34"><a class="ln" href="#source-server-34"> 34</a>         if self.path not in (&#x27;/run&#x27;, &#x27;/robustness&#x27;):</span>
+<span id="source-server-35"><a class="ln" href="#source-server-35"> 35</a>             self.send_json(dict(error=&#x27;Unknown simulation endpoint&#x27;),404); return</span>
+<span id="source-server-36"><a class="ln" href="#source-server-36"> 36</a>         # Prevent cross-origin pages from issuing simulations to this local service.</span>
+<span id="source-server-37"><a class="ln" href="#source-server-37"> 37</a>         if self.headers.get(&#x27;Origin&#x27;) not in (None, &#x27;http://&#x27;+self.headers.get(&#x27;Host&#x27;,&#x27;&#x27;)):</span>
+<span id="source-server-38"><a class="ln" href="#source-server-38"> 38</a>             self.send_error(403); return</span>
+<span id="source-server-39"><a class="ln" href="#source-server-39"> 39</a>         try:</span>
+<span id="source-server-40"><a class="ln" href="#source-server-40"> 40</a>             length=int(self.headers.get(&#x27;Content-Length&#x27;,0))</span>
+<span id="source-server-41"><a class="ln" href="#source-server-41"> 41</a>             if not 0 &lt; length &lt;= 100000:</span>
+<span id="source-server-42"><a class="ln" href="#source-server-42"> 42</a>                 raise ValueError(&#x27;Invalid request size&#x27;)</span>
+<span id="source-server-43"><a class="ln" href="#source-server-43"> 43</a>             payload=json.loads(self.rfile.read(length))</span>
+<span id="source-server-44"><a class="ln" href="#source-server-44"> 44</a>             result=(robustness(payload) if self.path==&#x27;/robustness&#x27; else experiment(payload))</span>
+<span id="source-server-45"><a class="ln" href="#source-server-45"> 45</a>             data=json.dumps(result,allow_nan=False).encode()</span>
+<span id="source-server-46"><a class="ln" href="#source-server-46"> 46</a>             self.send_response(200)</span>
+<span id="source-server-47"><a class="ln" href="#source-server-47"> 47</a>         except (ValueError, TypeError, KeyError, OverflowError) as error:</span>
+<span id="source-server-48"><a class="ln" href="#source-server-48"> 48</a>             data=json.dumps(dict(error=str(error))).encode()</span>
+<span id="source-server-49"><a class="ln" href="#source-server-49"> 49</a>             self.send_response(400)</span>
+<span id="source-server-50"><a class="ln" href="#source-server-50"> 50</a>         self.send_header(&#x27;Content-Type&#x27;,&#x27;application/json&#x27;)</span>
+<span id="source-server-51"><a class="ln" href="#source-server-51"> 51</a>         self.end_headers()</span>
+<span id="source-server-52"><a class="ln" href="#source-server-52"> 52</a>         self.wfile.write(data)</span>
+<span id="source-server-53"><a class="ln" href="#source-server-53"> 53</a> </span>
+<span id="source-server-54"><a class="ln" href="#source-server-54"> 54</a> </span>
+<span id="source-server-55"><a class="ln" href="#source-server-55"> 55</a> if __name__==&#x27;__main__&#x27;:</span>
+<span id="source-server-56"><a class="ln" href="#source-server-56"> 56</a>     parser=argparse.ArgumentParser()</span>
+<span id="source-server-57"><a class="ln" href="#source-server-57"> 57</a>     parser.add_argument(&#x27;--port&#x27;,type=int,default=8765)</span>
+<span id="source-server-58"><a class="ln" href="#source-server-58"> 58</a>     parser.add_argument(&#x27;--open&#x27;,action=&#x27;store_true&#x27;,help=&#x27;Open the local dashboard in your browser&#x27;)</span>
+<span id="source-server-59"><a class="ln" href="#source-server-59"> 59</a>     args=parser.parse_args()</span>
+<span id="source-server-60"><a class="ln" href="#source-server-60"> 60</a>     try:</span>
+<span id="source-server-61"><a class="ln" href="#source-server-61"> 61</a>         server=ThreadingHTTPServer((&#x27;127.0.0.1&#x27;,args.port),Handler)</span>
+<span id="source-server-62"><a class="ln" href="#source-server-62"> 62</a>     except OSError as error:</span>
+<span id="source-server-63"><a class="ln" href="#source-server-63"> 63</a>         parser.exit(1,f&#x27;Cannot start on port {args.port}: {error}\nStop the previous server or choose --port 8766.\n&#x27;)</span>
+<span id="source-server-64"><a class="ln" href="#source-server-64"> 64</a>     url=f&#x27;http://127.0.0.1:{server.server_port}&#x27;</span>
+<span id="source-server-65"><a class="ln" href="#source-server-65"> 65</a>     print(f&#x27;VGC simulator: {url} (Ctrl+C to stop)&#x27;,flush=True)</span>
+<span id="source-server-66"><a class="ln" href="#source-server-66"> 66</a>     if args.open:</span>
+<span id="source-server-67"><a class="ln" href="#source-server-67"> 67</a>         webbrowser.open(url)</span>
+<span id="source-server-68"><a class="ln" href="#source-server-68"> 68</a>     try:</span>
+<span id="source-server-69"><a class="ln" href="#source-server-69"> 69</a>         server.serve_forever()</span>
+<span id="source-server-70"><a class="ln" href="#source-server-70"> 70</a>     except KeyboardInterrupt:</span>
+<span id="source-server-71"><a class="ln" href="#source-server-71"> 71</a>         print(&#x27;\nServer stopped.&#x27;)</span>
+<span id="source-server-72"><a class="ln" href="#source-server-72"> 72</a>     finally:</span>
+<span id="source-server-73"><a class="ln" href="#source-server-73"> 73</a>         server.server_close()</span></code></pre></section>
+<section class="guide-section source" id="source-__main__"><h2>__main__.py — source browser</h2><pre><code><span id="source-__main__-1"><a class="ln" href="#source-__main__-1">  1</a> import argparse</span>
+<span id="source-__main__-2"><a class="ln" href="#source-__main__-2">  2</a> import csv</span>
+<span id="source-__main__-3"><a class="ln" href="#source-__main__-3">  3</a> import hashlib</span>
+<span id="source-__main__-4"><a class="ln" href="#source-__main__-4">  4</a> import json</span>
+<span id="source-__main__-5"><a class="ln" href="#source-__main__-5">  5</a> from dataclasses import asdict, replace</span>
+<span id="source-__main__-6"><a class="ln" href="#source-__main__-6">  6</a> from pathlib import Path</span>
+<span id="source-__main__-7"><a class="ln" href="#source-__main__-7">  7</a> from .model import Parameters, Action, World, simulate</span>
+<span id="source-__main__-8"><a class="ln" href="#source-__main__-8">  8</a> from .report import write_report</span>
+<span id="source-__main__-9"><a class="ln" href="#source-__main__-9">  9</a> </span>
+<span id="source-__main__-10"><a class="ln" href="#source-__main__-10"> 10</a> </span>
+<span id="source-__main__-11"><a class="ln" href="#source-__main__-11"> 11</a> def main():</span>
+<span id="source-__main__-12"><a class="ln" href="#source-__main__-12"> 12</a>     parser = argparse.ArgumentParser()</span>
+<span id="source-__main__-13"><a class="ln" href="#source-__main__-13"> 13</a>     parser.add_argument(&#x27;--config&#x27;, default=&#x27;config/baseline.json&#x27;)</span>
+<span id="source-__main__-14"><a class="ln" href="#source-__main__-14"> 14</a>     parser.add_argument(&#x27;--out&#x27;, default=&#x27;results&#x27;)</span>
+<span id="source-__main__-15"><a class="ln" href="#source-__main__-15"> 15</a>     parser.add_argument(&#x27;--years&#x27;, type=float, help=&#x27;Override simulation horizon in years&#x27;)</span>
+<span id="source-__main__-16"><a class="ln" href="#source-__main__-16"> 16</a>     args = parser.parse_args()</span>
+<span id="source-__main__-17"><a class="ln" href="#source-__main__-17"> 17</a>     p = Parameters(**json.loads(Path(args.config).read_text()))</span>
+<span id="source-__main__-18"><a class="ln" href="#source-__main__-18"> 18</a>     if args.years is not None:</span>
+<span id="source-__main__-19"><a class="ln" href="#source-__main__-19"> 19</a>         p = replace(p, horizon=args.years)</span>
+<span id="source-__main__-20"><a class="ln" href="#source-__main__-20"> 20</a>     out = Path(args.out)</span>
+<span id="source-__main__-21"><a class="ln" href="#source-__main__-21"> 21</a>     out.mkdir(parents=True, exist_ok=True)</span>
+<span id="source-__main__-22"><a class="ln" href="#source-__main__-22"> 22</a>     policies = {&#x27;baseline&#x27;: Action(), &#x27;hire&#x27;: Action(hire=True),</span>
+<span id="source-__main__-23"><a class="ln" href="#source-__main__-23"> 23</a>                 &#x27;protect_hire&#x27;: Action(hire=True, protect=True)}</span>
+<span id="source-__main__-24"><a class="ln" href="#source-__main__-24"> 24</a>     summary, manifest, report_runs = [], [], []</span>
+<span id="source-__main__-25"><a class="ln" href="#source-__main__-25"> 25</a>     for availability in (0.6, 0.8, 1.1):</span>
+<span id="source-__main__-26"><a class="ln" href="#source-__main__-26"> 26</a>         for name, action in policies.items():</span>
+<span id="source-__main__-27"><a class="ln" href="#source-__main__-27"> 27</a>             config = replace(p, availability=availability)</span>
+<span id="source-__main__-28"><a class="ln" href="#source-__main__-28"> 28</a>             rows = simulate(config, lambda observation: action)</span>
+<span id="source-__main__-29"><a class="ln" href="#source-__main__-29"> 29</a>             run_id = f&#x27;{name}_{availability:.1f}&#x27;</span>
+<span id="source-__main__-30"><a class="ln" href="#source-__main__-30"> 30</a>             with (out / f&#x27;{run_id}.csv&#x27;).open(&#x27;w&#x27;, newline=&#x27;&#x27;) as f:</span>
+<span id="source-__main__-31"><a class="ln" href="#source-__main__-31"> 31</a>                 writer = csv.DictWriter(f, fieldnames=rows[0])</span>
+<span id="source-__main__-32"><a class="ln" href="#source-__main__-32"> 32</a>                 writer.writeheader()</span>
+<span id="source-__main__-33"><a class="ln" href="#source-__main__-33"> 33</a>                 writer.writerows(rows)</span>
+<span id="source-__main__-34"><a class="ln" href="#source-__main__-34"> 34</a>             last = rows[-1]</span>
+<span id="source-__main__-35"><a class="ln" href="#source-__main__-35"> 35</a>             summary.append(dict(run=run_id, eis=last[&#x27;eis&#x27;], npv=last[&#x27;npv&#x27;],</span>
+<span id="source-__main__-36"><a class="ln" href="#source-__main__-36"> 36</a>                                 peak_exposure=last[&#x27;peak_exposure&#x27;], delivered=last[&#x27;delivered&#x27;]))</span>
+<span id="source-__main__-37"><a class="ln" href="#source-__main__-37"> 37</a>             manifest.append(dict(run=run_id, parameters=asdict(config), action=asdict(action)))</span>
+<span id="source-__main__-38"><a class="ln" href="#source-__main__-38"> 38</a>             initial = World(config).observe()</span>
+<span id="source-__main__-39"><a class="ln" href="#source-__main__-39"> 39</a>             initial.update(orders=0.0, deliveries=0.0, cashflow=0.0,</span>
+<span id="source-__main__-40"><a class="ln" href="#source-__main__-40"> 40</a>                            hires=0.0, losses=0.0, completed_work=0.0, rework=0.0)</span>
+<span id="source-__main__-41"><a class="ln" href="#source-__main__-41"> 41</a>             report_runs.append(dict(run=run_id, policy=name, parameters=asdict(config),</span>
+<span id="source-__main__-42"><a class="ln" href="#source-__main__-42"> 42</a>                                     rows=[initial] + rows))</span>
+<span id="source-__main__-43"><a class="ln" href="#source-__main__-43"> 43</a>     with (out / &#x27;summary.csv&#x27;).open(&#x27;w&#x27;, newline=&#x27;&#x27;) as f:</span>
+<span id="source-__main__-44"><a class="ln" href="#source-__main__-44"> 44</a>         writer = csv.DictWriter(f, fieldnames=summary[0])</span>
+<span id="source-__main__-45"><a class="ln" href="#source-__main__-45"> 45</a>         writer.writeheader()</span>
+<span id="source-__main__-46"><a class="ln" href="#source-__main__-46"> 46</a>         writer.writerows(summary)</span>
+<span id="source-__main__-47"><a class="ln" href="#source-__main__-47"> 47</a>     code_hash = hashlib.sha256(Path(__file__).with_name(&#x27;model.py&#x27;).read_bytes()).hexdigest()</span>
+<span id="source-__main__-48"><a class="ln" href="#source-__main__-48"> 48</a>     (out / &#x27;manifest.json&#x27;).write_text(json.dumps(dict(model_sha256=code_hash,</span>
+<span id="source-__main__-49"><a class="ln" href="#source-__main__-49"> 49</a>         units=&#x27;years, FTE, engineer-years, aircraft, constant USD million&#x27;,</span>
+<span id="source-__main__-50"><a class="ln" href="#source-__main__-50"> 50</a>         status=&#x27;synthetic demonstration, uncalibrated&#x27;, runs=manifest), indent=2))</span>
+<span id="source-__main__-51"><a class="ln" href="#source-__main__-51"> 51</a>     write_report(out / &#x27;report.html&#x27;, report_runs)</span>
+<span id="source-__main__-52"><a class="ln" href="#source-__main__-52"> 52</a>     print(f&#x27;Wrote {len(summary)} experiments to {out.resolve()}&#x27;)</span>
+<span id="source-__main__-53"><a class="ln" href="#source-__main__-53"> 53</a>     print(f&#x27;Open {(out / &quot;report.html&quot;).resolve()} in your browser&#x27;)</span>
+<span id="source-__main__-54"><a class="ln" href="#source-__main__-54"> 54</a> </span>
+<span id="source-__main__-55"><a class="ln" href="#source-__main__-55"> 55</a> </span>
+<span id="source-__main__-56"><a class="ln" href="#source-__main__-56"> 56</a> if __name__ == &#x27;__main__&#x27;:</span>
+<span id="source-__main__-57"><a class="ln" href="#source-__main__-57"> 57</a>     main()</span></code></pre></section></main>
+<script>
+const search=document.getElementById('search'),sections=[...document.querySelectorAll('.guide-section')];
+function filter(){const term=search.value.trim().toLowerCase();let count=0;sections.forEach(section=>{const show=!term||section.textContent.toLowerCase().includes(term);section.hidden=!show;if(show)count++;});document.getElementById('matches').textContent=term?count+' matching sections':'';}
+search.addEventListener('input',filter);
+function revealHash(){search.value='';filter();const node=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(node)node.scrollIntoView({block:'start'});}
+window.addEventListener('hashchange',revealHash);if(location.hash)revealHash();
+</script></body></html>
