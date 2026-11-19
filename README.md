@@ -1,4 +1,4 @@
-# VGC World Laboratory
+# VGC Test Tool
 
 A local simulator for exploring business-jet market entry using system dynamics, sampled futures and candidate adaptive pathways. The browser dashboard runs against a Python server on your own computer.
 
